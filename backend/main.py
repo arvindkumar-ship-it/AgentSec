@@ -27,14 +27,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# app.include_router(scan_routes.router)
-# app.include_router(shield_routes.router)
-# app.include_router(eval_routes.router)
-# app.include_router(dashboard_routes.router)
-app.include_router(scan_routes.router, prefix="/scan", tags=["Scan"])
-app.include_router(shield_routes.router, prefix="/shield", tags=["Shield"])
-app.include_router(eval_routes.router, prefix="/eval", tags=["Eval"])
-app.include_router(dashboard_routes.router, prefix="/dashboard", tags=["Dashboard"])
+app.include_router(scan_routes.router)
+app.include_router(shield_routes.router)
+app.include_router(eval_routes.router)
+app.include_router(dashboard_routes.router)
 
 
 @app.get("/")
