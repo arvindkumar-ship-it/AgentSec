@@ -280,7 +280,7 @@
 
 "use client";
 import { useState } from "react";
-import { Shield, Zap, ChevronLeft, CheckCircle, XCircle, AlertTriangle, MessageSquare, FileText } from "lucide-react";
+import { Shield, ChevronLeft, CheckCircle, XCircle, AlertTriangle, MessageSquare, FileText } from "lucide-react";
 import agentSecAPI from "@/lib/api";
 import Link from "next/link";
 
@@ -467,10 +467,10 @@ export default function ScanPage() {
   ] : [];
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen">
       <nav className="border-b border-border bg-panel px-8 py-4 flex items-center gap-4">
         <Link href="/" className="text-gray-500 hover:text-white transition-colors"><ChevronLeft size={20} /></Link>
-        <Shield className="text-accent" size={20} />
+      
         <span className="font-semibold">Agent Scan</span>
         <span className="text-xs text-gray-500">— Pre-deploy security analysis</span>
       </nav>
@@ -552,7 +552,7 @@ export default function ScanPage() {
             className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
             {loading
               ? <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Running Full Scan...</>
-              : <><Zap size={16} /> Run Security Scan</>}
+              : "Run Security Scan"}
           </button>
         </div>
 
@@ -560,7 +560,7 @@ export default function ScanPage() {
         <div>
           {!report && !loading && (
             <div className="flex flex-col items-center justify-center h-full text-center py-20 text-gray-600">
-              <Zap size={40} className="mb-3 text-gray-700" />
+              {/* <Zap size={40} className="mb-3 text-gray-700" /> */}
               <p className="text-sm">Configure your agent and run a scan</p>
               <p className="text-xs mt-1">Includes single-shot, multi-turn, and document injection tests</p>
             </div>

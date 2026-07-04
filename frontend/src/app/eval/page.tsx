@@ -73,10 +73,10 @@ export default function EvalPage() {
   })) : [];
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen">
       <nav className="border-b border-border bg-panel px-8 py-4 flex items-center gap-4">
         <Link href="/" className="text-gray-500 hover:text-white transition-colors"><ChevronLeft size={20} /></Link>
-        <Activity className="text-orange-400" size={20} />
+      
         <span className="font-semibold">Agent Eval</span>
         <span className="text-xs text-gray-500">— Continuous adversarial testing</span>
       </nav>
@@ -149,8 +149,8 @@ export default function EvalPage() {
               {loading ? (
                 <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Running Eval...</>
               ) : (
-                <><Activity size={16} /> Run Eval Now</>
-              )}
+                "Run Eval Now"
+                )}
             </button>
 
             {/* History */}

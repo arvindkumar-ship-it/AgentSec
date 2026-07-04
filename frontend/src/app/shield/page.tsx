@@ -78,7 +78,7 @@ export default function ShieldPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen">
       <nav className="border-b border-border bg-panel px-8 py-4 flex items-center gap-4">
         <Link href="/" className="text-gray-500 hover:text-white transition-colors"><ChevronLeft size={20} /></Link>
         <Shield className="text-green-400" size={20} />
