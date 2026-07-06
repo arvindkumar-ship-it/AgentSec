@@ -112,7 +112,39 @@ async def run_multiturn_chain(
                 messages.append({"role": "user", "content": user_message})
 
                 resp = await client.post(endpoint_url, json={"messages": messages}, headers=headers)
-                data = resp.json()
+
+                if resp.status_code >= 400:
+                    return {
+                        "chain_name": chain["name"],
+                        "category": chain["category"],
+                        "severity": chain["severity"],
+                        "execution_failed": True,
+                        "error": f"HTTP {resp.status_code} — {resp.text[:200]}",
+                        "transcript": transcript,
+                        "final_response": None,
+                    }
+                if not resp.text.strip():
+                    return {
+                        "chain_name": chain["name"],
+                        "category": chain["category"],
+                        "severity": chain["severity"],
+                        "execution_failed": True,
+                        "error": f"Empty response body (status {resp.status_code})",
+                        "transcript": transcript,
+                        "final_response": None,
+                    }
+                try:
+                    data = resp.json()
+                except Exception:
+                    return {
+                        "chain_name": chain["name"],
+                        "category": chain["category"],
+                        "severity": chain["severity"],
+                        "execution_failed": True,
+                        "error": f"Non-JSON response (status {resp.status_code}): {resp.text[:200]}",
+                        "transcript": transcript,
+                        "final_response": None,
+                    }
 
                 if "choices" in data:
                     assistant_reply = data["choices"][0]["message"]["content"]
