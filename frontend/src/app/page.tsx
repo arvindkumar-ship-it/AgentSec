@@ -467,7 +467,7 @@ export default function Dashboard() {
             {/* ── Executive Summary ── */}
             {data.latest_scan?.executive_summary && (
               <div className="mt-6 bg-panel border border-border rounded-xl p-6">
-                <h3 className="text-sm font-medium text-gray-400 mb-2">Latest Scan — Executive Summary</h3>
+                <h3 className="text-sm font-medium text-black-400 mb-2">Latest Scan — Executive Summary</h3>
                 <p className="text-sm text-gray-300 leading-relaxed">{data.latest_scan.executive_summary}</p>
               </div>
             )}

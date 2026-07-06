@@ -1,283 +1,3 @@
-// "use client";
-// import { useState } from "react";
-// import { Shield, Zap, ChevronLeft, AlertTriangle, CheckCircle, XCircle, Info } from "lucide-react";
-// import agentSecAPI from "@/lib/api";
-// import Link from "next/link";
-
-// const CATEGORIES = [
-//   "prompt_injection", "insecure_output", "data_exfiltration",
-//   "excessive_agency", "denial_of_service", "memory_poisoning",
-//   "indirect_injection", "jailbreak", "auth_bypass"
-// ];
-
-// function SeverityBadge({ sev }: { sev: string }) {
-//   return <span className={`text-xs px-2 py-0.5 rounded-full severity-${sev}`}>{sev}</span>;
-// }
-
-// function FindingCard({ finding }: { finding: any }) {
-//   return (
-//     <div className="bg-surface border border-border rounded-lg p-4">
-//       <div className="flex items-start justify-between gap-2 mb-1">
-//         <span className="text-sm font-medium text-white">{finding.name || finding.description || finding.pattern}</span>
-//         <SeverityBadge sev={finding.severity} />
-//       </div>
-//       <p className="text-xs text-gray-500 mb-2">{finding.type}</p>
-//       {finding.fix && (
-//         <div className="bg-green-500/5 border border-green-500/20 rounded p-2.5 mt-2">
-//           <p className="text-xs text-green-400"><span className="font-medium">Fix: </span>{finding.fix}</p>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-// function AttackResult({ result }: { result: any }) {
-//   const success = result.verdict?.success;
-//   return (
-//     <div className={`border rounded-lg p-4 ${success ? "border-red-500/30 bg-red-500/5" : "border-border bg-surface"}`}>
-//       <div className="flex items-center gap-2 mb-2">
-//         {success ? <XCircle className="text-red-400" size={16} /> : <CheckCircle className="text-green-400" size={16} />}
-//         <span className="text-sm font-medium">{success ? "Attack Succeeded" : "Attack Blocked"}</span>
-//         <SeverityBadge sev={result.severity} />
-//         <span className="text-xs text-gray-500 ml-auto font-mono">{result.category}</span>
-//       </div>
-//       <p className="text-xs text-gray-400 font-mono bg-surface border border-border rounded p-2 mb-2">{result.payload}</p>
-//       {result.verdict?.reason && (
-//         <p className="text-xs text-gray-500">{result.verdict.reason}</p>
-//       )}
-//       {result.verdict?.recommendation && success && (
-//         <div className="mt-2 bg-orange-500/10 border border-orange-500/20 rounded p-2">
-//           <p className="text-xs text-orange-400"><span className="font-medium">Fix: </span>{result.verdict.recommendation}</p>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-// export default function ScanPage() {
-//   const [form, setForm] = useState({
-//     agent_id: "my-agent-001",
-//     agent_name: "",
-//     system_prompt: "",
-//     endpoint_url: "",
-//     auth_header: "",
-//     source_code: "",
-//     rag_enabled: false,
-//     categories: [] as string[],
-//   });
-//   const [loading, setLoading] = useState(false);
-//   const [report, setReport] = useState<any>(null);
-//   const [activeTab, setActiveTab] = useState<"static" | "attacks" | "fixes">("static");
-
-//   const toggleCategory = (c: string) => {
-//     setForm(f => ({
-//       ...f,
-//       categories: f.categories.includes(c)
-//         ? f.categories.filter(x => x !== c)
-//         : [...f.categories, c]
-//     }));
-//   };
-
-//   const runScan = async () => {
-//     setLoading(true);
-//     setReport(null);
-//     try {
-//       const r = await agentSecAPI.runScan(form);
-//       setReport(r.data.report);
-//     } catch (e: any) {
-//       alert("Scan failed: " + (e.response?.data?.detail || e.message));
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const scoreColor = report?.security_score >= 80 ? "text-green-400" :
-//                      report?.security_score >= 60 ? "text-yellow-400" : "text-red-400";
-
-//   return (
-//     <div className="min-h-screen bg-surface">
-//       <nav className="border-b border-border bg-panel px-8 py-4 flex items-center gap-4">
-//         <Link href="/" className="text-gray-500 hover:text-white transition-colors"><ChevronLeft size={20} /></Link>
-//         <Shield className="text-accent" size={20} />
-//         <span className="font-semibold">Agent Scan</span>
-//         <span className="text-xs text-gray-500">— Pre-deploy security analysis</span>
-//       </nav>
-
-//       <div className="max-w-6xl mx-auto px-8 py-8 grid grid-cols-2 gap-8">
-//         {/* ── Left: Config Form ── */}
-//         <div className="space-y-5">
-//           <h2 className="text-sm font-medium text-gray-400 uppercase tracking-widest">Scan Configuration</h2>
-
-//           {[
-//             { label: "Agent ID *", key: "agent_id", placeholder: "my-agent-001", mono: true },
-//             { label: "Agent Name *", key: "agent_name", placeholder: "My Customer Support Agent" },
-//             { label: "Endpoint URL", key: "endpoint_url", placeholder: "https://my-agent.com/chat" },
-//             { label: "Auth Header", key: "auth_header", placeholder: "Bearer your-token" },
-//           ].map(({ label, key, placeholder, mono }) => (
-//             <div key={key}>
-//               <label className="block text-xs text-gray-500 mb-1.5">{label}</label>
-//               <input
-//                 value={(form as any)[key]}
-//                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-//                 placeholder={placeholder}
-//                 className={`w-full bg-panel border border-border rounded-lg px-4 py-2.5 text-sm focus:outline-none focus:border-accent ${mono ? "font-mono" : ""}`}
-//               />
-//             </div>
-//           ))}
-
-//           <div>
-//             <label className="block text-xs text-gray-500 mb-1.5">System Prompt *</label>
-//             <textarea
-//               value={form.system_prompt}
-//               onChange={e => setForm(f => ({ ...f, system_prompt: e.target.value }))}
-//               placeholder="You are a helpful customer support assistant for Acme Corp..."
-//               rows={5}
-//               className="w-full bg-panel border border-border rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-accent resize-none"
-//             />
-//           </div>
-
-//           <div>
-//             <label className="block text-xs text-gray-500 mb-1.5">Source Code (optional)</label>
-//             <textarea
-//               value={form.source_code}
-//               onChange={e => setForm(f => ({ ...f, source_code: e.target.value }))}
-//               placeholder="Paste your agent's Python code here..."
-//               rows={4}
-//               className="w-full bg-panel border border-border rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-accent resize-none"
-//             />
-//           </div>
-
-//           <div>
-//             <label className="block text-xs text-gray-500 mb-2">Attack Categories (empty = all)</label>
-//             <div className="flex flex-wrap gap-2">
-//               {CATEGORIES.map(c => (
-//                 <button
-//                   key={c}
-//                   onClick={() => toggleCategory(c)}
-//                   className={`text-xs px-3 py-1.5 rounded-full border transition-colors font-mono ${
-//                     form.categories.includes(c)
-//                       ? "bg-accent/20 border-accent text-accent"
-//                       : "border-border text-gray-500 hover:border-gray-500"
-//                   }`}
-//                 >
-//                   {c}
-//                 </button>
-//               ))}
-//             </div>
-//           </div>
-
-//           <div className="flex items-center gap-3">
-//             <button
-//               onClick={() => setForm(f => ({ ...f, rag_enabled: !f.rag_enabled }))}
-//               className={`w-10 h-5 rounded-full transition-colors relative ${form.rag_enabled ? "bg-accent" : "bg-border"}`}
-//             >
-//               <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-all ${form.rag_enabled ? "left-5" : "left-0.5"}`} />
-//             </button>
-//             <span className="text-sm text-gray-400">RAG enabled (adds memory poisoning tests)</span>
-//           </div>
-
-//           <button
-//             onClick={runScan}
-//             disabled={loading || !form.agent_id || !form.agent_name}
-//             className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2"
-//           >
-//             {loading ? (
-//               <><div className="animate-spin w-4 h-4 border-2 border-white border-t-transparent rounded-full" /> Running Scan...</>
-//             ) : (
-//               <><Zap size={16} /> Run Security Scan</>
-//             )}
-//           </button>
-//         </div>
-
-//         {/* ── Right: Results ── */}
-//         <div>
-//           {!report && !loading && (
-//             <div className="flex flex-col items-center justify-center h-full text-center py-20 text-gray-600">
-//               <Zap size={40} className="mb-3 text-gray-700" />
-//               <p className="text-sm">Configure your agent and run a scan</p>
-//               <p className="text-xs mt-1">Results will appear here</p>
-//             </div>
-//           )}
-
-//           {loading && (
-//             <div className="flex flex-col items-center justify-center h-full py-20">
-//               <div className="animate-spin w-10 h-10 border-2 border-accent border-t-transparent rounded-full mb-4" />
-//               <p className="text-sm text-gray-400">Running security scan...</p>
-//               <p className="text-xs text-gray-600 mt-1">This may take 1-2 minutes</p>
-//             </div>
-//           )}
-
-//           {report && (
-//             <div className="space-y-5">
-//               {/* Score Summary */}
-//               <div className="bg-panel border border-border rounded-xl p-6">
-//                 <div className="flex items-center justify-between mb-1">
-//                   <h3 className="font-semibold">{report.agent_name}</h3>
-//                   <span className={`text-4xl font-bold font-mono ${scoreColor}`}>{report.security_score}<span className="text-base text-gray-600">/100</span></span>
-//                 </div>
-//                 <p className="text-sm text-gray-400 mb-4">{report.executive_summary}</p>
-//                 <div className="grid grid-cols-3 gap-3 text-center">
-//                   {[
-//                     { label: "Static Findings", val: report.statistics?.static_findings },
-//                     { label: "Attacks Passed", val: `${report.statistics?.failed_attacks}/${report.statistics?.total_attacks}` },
-//                     { label: "Critical", val: report.statistics?.critical_count, color: "text-red-400" },
-//                   ].map(({ label, val, color }) => (
-//                     <div key={label} className="bg-surface rounded-lg p-3">
-//                       <div className={`text-xl font-bold font-mono ${color || "text-white"}`}>{val}</div>
-//                       <div className="text-xs text-gray-500 mt-0.5">{label}</div>
-//                     </div>
-//                   ))}
-//                 </div>
-//               </div>
-
-//               {/* Tabs */}
-//               <div className="flex gap-1 bg-panel border border-border rounded-lg p-1">
-//                 {(["static", "attacks", "fixes"] as const).map(tab => (
-//                   <button
-//                     key={tab}
-//                     onClick={() => setActiveTab(tab)}
-//                     className={`flex-1 py-1.5 rounded text-sm font-medium capitalize transition-colors ${activeTab === tab ? "bg-accent text-white" : "text-gray-500 hover:text-white"}`}
-//                   >
-//                     {tab === "static" ? `Static (${report.static_findings?.length})` :
-//                      tab === "attacks" ? `Attacks (${report.statistics?.successful_attacks} failed)` : "Fixes"}
-//                   </button>
-//                 ))}
-//               </div>
-
-//               <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-//                 {activeTab === "static" && report.static_findings?.map((f: any, i: number) => (
-//                   <FindingCard key={i} finding={f} />
-//                 ))}
-//                 {activeTab === "attacks" && report.successful_attacks?.map((r: any, i: number) => (
-//                   <AttackResult key={i} result={r} />
-//                 ))}
-//                 {activeTab === "fixes" && report.top_fixes?.map((fix: any, i: number) => (
-//                   <div key={i} className="bg-panel border border-border rounded-lg p-4">
-//                     <div className="flex items-center gap-2 mb-2">
-//                       <span className="text-xs bg-accent/20 text-accent px-2 py-0.5 rounded-full">#{fix.priority}</span>
-//                       <span className="text-sm font-medium">{fix.issue}</span>
-//                     </div>
-//                     <p className="text-sm text-gray-400 mb-2">{fix.fix}</p>
-//                     {fix.example && (
-//                       <pre className="text-xs font-mono bg-surface border border-border rounded p-3 text-green-400 whitespace-pre-wrap">{fix.example}</pre>
-//                     )}
-//                   </div>
-//                 ))}
-//               </div>
-//             </div>
-//           )}
-//         </div>
-//       </div>
-//     </div>
-//   );
-// }
-
-
-
-
-
-
-
 "use client";
 import { useState } from "react";
 import { Shield, ChevronLeft, CheckCircle, XCircle, AlertTriangle, MessageSquare, FileText } from "lucide-react";
@@ -431,6 +151,8 @@ export default function ScanPage() {
     run_document_injection: true,
     run_blackbox_probes: true,
     categories: [] as string[],
+    use_form_data: false,
+    form_extra_fields_text: "",
   });
   const [loading, setLoading] = useState(false);
   const [report, setReport] = useState<any>(null);
@@ -443,7 +165,19 @@ export default function ScanPage() {
     setLoading(true);
     setReport(null);
     try {
-      const r = await agentSecAPI.runScan(form);
+      let form_extra_fields = null;
+      if (form.use_form_data && form.form_extra_fields_text.trim()) {
+        try {
+          form_extra_fields = JSON.parse(form.form_extra_fields_text);
+        } catch {
+          alert("Form Extra Fields must be valid JSON, e.g. {\"defender\": \"baseline\"}");
+          setLoading(false);
+          return;
+        }
+      }
+      const { form_extra_fields_text, ...rest } = form;
+      const payload = { ...rest, form_extra_fields };
+      const r = await agentSecAPI.runScan(payload);
       setReport(r.data.report);
       setActiveTab("static");
     } catch (e: any) {
@@ -537,6 +271,7 @@ export default function ScanPage() {
               { key: "run_multiturn", label: "Run multi-turn manipulation chains" },
               { key: "run_document_injection", label: "Run document/indirect injection tests" },
               { key: "run_blackbox_probes", label: "Run black-box behavioral probes (no source code needed)" },
+              { key: "use_form_data", label: "Send attacks as form-data instead of JSON (e.g. for Gandalf-style APIs)" },
             ] as { key: keyof typeof form; label: string }[]).map(({ key, label }) => (
               <div key={key} className="flex items-center gap-3">
                 <button onClick={() => setForm(f => ({ ...f, [key]: !f[key] }))}
@@ -547,6 +282,19 @@ export default function ScanPage() {
               </div>
             ))}
           </div>
+
+          {form.use_form_data && (
+            <div>
+              <label className="block text-xs text-gray-500 mb-1.5">Form Extra Fields (JSON)</label>
+              <textarea
+                value={form.form_extra_fields_text}
+                onChange={e => setForm(f => ({ ...f, form_extra_fields_text: e.target.value }))}
+                placeholder='{"defender": "baseline"}'
+                rows={2}
+                className="w-full bg-panel border border-border rounded-lg px-4 py-2.5 text-sm font-mono focus:outline-none focus:border-accent resize-none"
+              />
+            </div>
+          )}
 
           <button onClick={runScan} disabled={loading || !form.agent_id || !form.agent_name}
             className="w-full bg-accent hover:bg-accent-dim disabled:opacity-50 disabled:cursor-not-allowed py-3 rounded-xl text-sm font-semibold transition-colors flex items-center justify-center gap-2">
