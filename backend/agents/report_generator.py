@@ -66,10 +66,8 @@ async def generate_scan_report(
     else:
         base_score = None  # explicitly "not measured", not "100"
 
-    static_penalty = sum(
-        15 if f.get("severity") == "HIGH" else 8 if f.get("severity") == "MEDIUM" else 3
-        for f in static_findings
-    )
+    SEVERITY_PENALTY = {"CRITICAL": 20, "HIGH": 15, "MEDIUM": 8, "LOW": 3}
+    static_penalty = sum(SEVERITY_PENALTY.get(f.get("severity"), 3) for f in static_findings)
 
     if base_score is not None:
         security_score = max(0, base_score - static_penalty)
