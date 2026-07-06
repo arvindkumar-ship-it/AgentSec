@@ -27,10 +27,11 @@ class ScanRequest(BaseModel):
     rag_enabled: bool = False
     categories: List[str] = Field([], description="Filter single-shot attack categories. Empty = all.")
     request_format: Optional[Dict[str, Any]] = None
+    use_form_data: bool = Field(False, description="Send attacks as form-urlencoded instead of JSON (e.g. for Gandalf-style APIs)")
+    form_extra_fields: Optional[Dict[str, Any]] = Field(None, description="Extra static fields to include in the form body, e.g. {'defender': 'baseline'}")
     run_multiturn: bool = Field(True, description="Run multi-turn manipulation chains (requires endpoint_url)")
     run_document_injection: bool = Field(True, description="Run indirect/document injection tests (requires endpoint_url)")
     run_blackbox_probes: bool = Field(True, description="Run black-box behavioral probes without source code")
-
 
 class EvalRequest(BaseModel):
     agent_id: str
