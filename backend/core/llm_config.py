@@ -10,8 +10,8 @@ async def call_llm(messages: list, temperature: float = 0.3, max_tokens: int = 2
     Groq fails → silently falls to Gemini.
     """
     providers = [
-        ("groq/llama-3.3-70b-versatile", settings.GROQ_API_KEY),
-        ("gemini/gemini-1.5-flash", settings.GEMINI_API_KEY),
+        ("groq/llama-3.1-8b-instant", settings.GROQ_API_KEY),
+        ("gemini/gemini-2.5-flash-lite", settings.GEMINI_API_KEY),
     ]
 
     last_error = None
