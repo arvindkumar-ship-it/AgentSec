@@ -1,11 +1,10 @@
 import axios from "axios";
 
 const API = axios.create({
-  // baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
   baseURL: typeof window !== "undefined" && window.location.hostname !== "localhost"
     ? "https://agentsec-backend.onrender.com" 
     : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"),
-  timeout: 120000, // 2 min — scans can take time
+  timeout: 600000, // 10 min — full scans (attacks + multiturn + doc injection + blackbox) genuinely take time
 });
 
 export const agentSecAPI = {
