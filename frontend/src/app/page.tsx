@@ -413,7 +413,7 @@ export default function Dashboard() {
                 <StatCard
                   label="Eval Pass Rate"
                   value={`${data.latest_eval?.pass_rate ?? "—"}%`}
-                  color="text-green-400"
+                  color="black-400"
                   sub={`${data.latest_eval?.total_tests ?? 0} tests run`}
                 />
                 <StatCard
