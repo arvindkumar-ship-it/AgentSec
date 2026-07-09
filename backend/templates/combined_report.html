@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AgentSec Report — {{ metadata.agent_name }}</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #121822; --border: #223; --text: #e6edf3;
+    --muted: #8b98a5; --critical: #ff4d4f; --high: #ff9f43; --medium: #f7d51d;
+    --low: #2ecc71; --accent: #4da3ff;
+  }
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; margin: 0; padding: 32px; }
+  .header { display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:16px; margin-bottom:24px; }
+  .header h1 { margin:0; font-size:22px; }
+  .header .meta { color: var(--muted); font-size:13px; }
+  .badge { padding:4px 12px; border-radius:6px; font-weight:600; font-size:13px; text-transform:uppercase; }
+  .badge.CRITICAL { background: var(--critical); color:#fff; }
+  .badge.HIGH { background: var(--high); color:#111; }
+  .badge.MEDIUM { background: var(--medium); color:#111; }
+  .badge.LOW { background: var(--low); color:#111; }
+  .cards { display:flex; gap:16px; margin:20px 0; flex-wrap:wrap; }
+  .card { background: var(--panel); border:1px solid var(--border); border-radius:10px; padding:16px 20px; min-width:140px; }
+  .card .val { font-size:26px; font-weight:700; }
+  .card .lbl { color: var(--muted); font-size:12px; }
+  section { margin: 32px 0; }
+  h2 { font-size:16px; border-left:3px solid var(--accent); padding-left:10px; }
+  table { width:100%; border-collapse: collapse; font-size:13px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--border); }
+  th { color: var(--muted); font-weight:600; }
+  .pill { padding:2px 8px; border-radius:4px; font-size:11px; font-weight:600; }
+  details { background: var(--panel); border:1px solid var(--border); border-radius:8px; margin-bottom:8px; padding:10px 14px; }
+  summary { cursor:pointer; font-size:13px; }
+  pre { white-space: pre-wrap; word-break: break-word; background:#0d1218; padding:10px; border-radius:6px; font-size:12px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <h1>{{ metadata.agent_name }} — Security Report</h1>
+    <div class="meta">agent_id: {{ metadata.agent_id }} · scan_id: {{ metadata.scan_id }} · {{ metadata.generated_at }}</div>
+  </div>
+  <span class="badge {{ executive_summary.risk_level }}">{{ executive_summary.risk_level }}</span>
+</div>
+
+<section>
+  <h2>Executive Summary</h2>
+  <div class="cards">
+    <div class="card"><div class="val">{{ executive_summary.security_score }}</div><div class="lbl">Security Score</div></div>
+    {% if eval_metrics %}
+    <div class="card"><div class="val">{{ eval_metrics.pass_rate }}%</div><div class="lbl">Eval Pass Rate</div></div>
+    <div class="card"><div class="val">{{ eval_metrics.total_tests }}</div><div class="lbl">Total Eval Tests</div></div>
+    {% endif %}
+    <div class="card"><div class="val">{{ successful_attacks|length }}</div><div class="lbl">Confirmed Attacks</div></div>
+    <div class="card"><div class="val">{{ needs_review_attacks|length }}</div><div class="lbl">Needs Review</div></div>
+  </div>
+  <p>{{ executive_summary.text }}</p>
+</section>
+
+{% if eval_metrics %}
+<section>
+  <h2>Evaluation & Benchmark</h2>
+  <table>
+    <tr><th>Metric</th><th>Value</th></tr>
+    <tr><td>Pass rate</td><td>{{ eval_metrics.pass_rate }}%</td></tr>
+    <tr><td>Total tests</td><td>{{ eval_metrics.total_tests }}</td></tr>
+    <tr><td>Successful attacks</td><td>{{ eval_metrics.successful_attacks }}</td></tr>
+    <tr><td>Execution errors</td><td>{{ eval_metrics.execution_errors }}</td></tr>
+  </table>
+  <h2 style="margin-top:24px;">Category Breakdown</h2>
+  <table>
+    <tr><th>Category</th><th>Total</th><th>Passed</th><th>Failed</th></tr>
+    {% for cat_name, cat in [("Prompt Injection", eval_metrics.prompt_injection), ("Insecure Output", eval_metrics.insecure_output), ("Data Exfiltration", eval_metrics.data_exfiltration)] %}
+    {% if cat %}
+    <tr>
+      <td>{{ cat_name }}</td>
+      <td>{{ cat.total }}</td>
+      <td>{{ cat.passed }}</td>
+      <td>{{ cat.failed }}</td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </table>
+  {% if eval_metrics.note %}<p class="meta">Note: {{ eval_metrics.note }}</p>{% endif %}
+</section>
+{% endif %}
+
+<section>
+  <h2>Static Guardrail Findings</h2>
+  <table>
+    <tr><th>Name</th><th>Type</th><th>Severity</th><th>Fix</th></tr>
+    {% for f in static_findings %}
+    <tr><td>{{ f.name }}</td><td>{{ f.type }}</td><td>{{ f.severity }}</td><td>{{ f.fix }}</td></tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section>
+  <h2>Confirmed Successful Attacks</h2>
+  {% for a in successful_attacks %}
+  <details>
+    <summary>[{{ a.severity }}] {{ a.category }} — {{ a.verdict.reason if a.verdict else "" }}</summary>
+    <pre>{{ a.payload }}</pre>
+  </details>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Attacks Requiring Manual Review</h2>
+  {% for a in needs_review_attacks %}
+  <details>
+    <summary>[{{ a.severity }}] {{ a.category }}</summary>
+    <pre>{{ a.payload }}</pre>
+  </details>
+  {% endfor %}
+</section>
+
+<section>
+  <h2>Top Remediation Actions</h2>
+  <table>
+    <tr><th>Priority</th><th>Issue</th><th>Fix</th></tr>
+    {% for fx in top_fixes %}
+    <tr><td>{{ fx.priority }}</td><td>{{ fx.issue }}</td><td>{{ fx.fix }}</td></tr>
+    {% endfor %}
+  </table>
+</section>
+
+<section>
+  <h2>Raw Attack Results (Appendix)</h2>
+  {% for r in raw_results %}
+  <details>
+    <summary>{{ r.category }} — {{ r.verdict.reason if r.verdict else "n/a" }}</summary>
+    <pre>Payload: {{ r.payload }}
+
+Agent Response: {{ r.agent_response }}</pre>
+  </details>
+  {% endfor %}
+</section>
+
+</body>
+</html>

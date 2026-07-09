@@ -53,7 +53,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.db import connect_db, close_db
 from routes import scan_routes, shield_routes, eval_routes, dashboard_routes, auth_routes, agent_config_routes
-
+from routes.reports import router as reports_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -83,7 +83,7 @@ app.include_router(shield_routes.router)
 app.include_router(eval_routes.router)
 app.include_router(dashboard_routes.router)
 app.include_router(agent_config_routes.router)
-
+app.include_router(reports_router)
 
 @app.get("/")
 async def root():
