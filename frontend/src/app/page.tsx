@@ -445,11 +445,12 @@ export default function Dashboard() {
             )}
 
             {/* ── Quick Actions ── */}
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4">
               {[
                 { href: "/scan", icon: Zap, label: "Run New Scan", sub: "Full static + dynamic analysis", color: "text-indigo-400" },
                 { href: "/shield", icon: Shield, label: "View Shield Logs", sub: "Runtime audit trail", color: "text-green-400" },
                 { href: "/eval", icon: Activity, label: "Run Eval", sub: "Adversarial testing", color: "text-orange-400" },
+                { href: `/reports/${data.latest_scan?.scan_id}`, icon: Scan, label: "View Full Report", sub: "Detailed attack breakdown", color: "text-blue-400" },
               ].map(({ href, icon: Icon, label, sub, color }) => (
                 <Link key={href} href={href}>
                   <div className="bg-panel border border-border hover:border-accent/50 rounded-xl p-5 flex items-center gap-4 cursor-pointer transition-colors group">
@@ -469,6 +470,12 @@ export default function Dashboard() {
               <div className="mt-6 bg-panel border border-border rounded-xl p-6">
                 <h3 className="text-sm font-medium text-black-400 mb-2">Latest Scan — Executive Summary</h3>
                 <p className="text-sm text-gray-300 leading-relaxed">{data.latest_scan.executive_summary}</p>
+                <Link
+                  href={`/reports/${data.latest_scan?.scan_id}`}
+                  className="mt-4 inline-flex items-center gap-1 text-sm text-accent hover:underline"
+                >
+                  View full report <ChevronRight size={14} />
+                </Link>
               </div>
             )}
           </>
