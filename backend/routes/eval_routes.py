@@ -48,3 +48,21 @@ async def get_eval_history(agent_id: str, limit: int = 20):
         history.append(doc)
 
     return {"agent_id": agent_id, "history": history}
+from fastapi import APIRouter
+
+agentsec_eval_router = APIRouter()
+
+@agentsec_eval_router.get("/agentsec/evals")
+async def list_evals_for_agent(agent_id: str, scan_id: str | None = None):
+    db = get_db()
+    query = {"agent_id": agent_id}
+    if scan_id:
+        query["scan_id"] = scan_id
+
+    cursor = db.eval_results.find(query).sort("run_at", -1)
+    docs = await cursor.to_list(length=100)
+
+    for d in docs:
+        d.pop("_id", None)
+
+    return docs

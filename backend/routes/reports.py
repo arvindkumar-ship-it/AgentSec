@@ -118,6 +118,20 @@ async def get_combined_report(scan_id: str):
     return HTMLResponse(content=html)
 
 
+@router.get("/{scan_id}/json")
+async def get_combined_report_json(scan_id: str):
+    """JSON version of the combined report, for the frontend report page."""
+    scan_doc = await _get_scan(scan_id)
+    scan_doc.pop("_id", None)
+
+    agent_id = scan_doc.get("agent_id")
+    eval_doc = await _get_latest_eval(agent_id, scan_id)
+    if eval_doc:
+        eval_doc.pop("_id", None)
+
+    return {"status": "completed", "report": scan_doc}
+
+
 @router.get("/{scan_id}/download")
 async def download_pdf(scan_id: str):
     scan_doc = await _get_scan(scan_id)

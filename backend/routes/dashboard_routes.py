@@ -15,10 +15,10 @@ async def get_dashboard_summary(agent_id: str):
 
     # Latest scan report
     latest_scan = await db.scan_reports.find_one(
-        {"agent_id": agent_id},
-        {"security_score": 1, "risk_level": 1, "generated_at": 1,
-         "statistics": 1, "executive_summary": 1, "_id": 0},
-        sort=[("generated_at", -1)]
+    {"agent_id": agent_id},
+    {"scan_id": 1, "security_score": 1, "risk_level": 1, "generated_at": 1,
+     "statistics": 1, "executive_summary": 1, "_id": 0},
+    sort=[("generated_at", -1)]
     )
 
     # Shield stats (last 24h)

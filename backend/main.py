@@ -79,8 +79,10 @@ app.add_middleware(
 
 app.include_router(auth_routes.router)
 app.include_router(scan_routes.router)
+app.include_router(scan_routes.agentsec_scan_router)
 app.include_router(shield_routes.router)
 app.include_router(eval_routes.router)
+app.include_router(eval_routes.agentsec_eval_router)
 app.include_router(dashboard_routes.router)
 app.include_router(agent_config_routes.router)
 app.include_router(reports_router)

@@ -110,3 +110,30 @@ async def get_single_report(agent_id: str, scan_id: str):
         raise HTTPException(status_code=404, detail="Report not found")
     doc["_id"] = str(doc["_id"])
     return doc
+
+
+
+from fastapi import APIRouter
+
+# separate router, NO prefix — so paths stay exactly /agentsec/scans
+agentsec_scan_router = APIRouter()
+
+@agentsec_scan_router.get("/agentsec/scans")
+async def list_scans_for_agent(agent_id: str):
+    db = get_db()
+    cursor = db.scan_reports.find({"agent_id": agent_id}).sort("generated_at", -1)
+    docs = await cursor.to_list(length=100)
+
+    return [
+        {
+            "id": d.get("scan_id"),
+            "agent_id": d.get("agent_id"),
+            "agent_name": d.get("agent_name"),
+            "generated_at": d.get("generated_at"),
+            "risk_level": d.get("risk_level"),
+            "security_score": d.get("security_score"),
+            "dynamic_testing_performed": d.get("dynamic_testing_performed", False),
+            "status": d.get("status", "completed"),
+        }
+        for d in docs
+    ]
