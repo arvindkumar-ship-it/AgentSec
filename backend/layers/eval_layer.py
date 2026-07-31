@@ -500,8 +500,8 @@ async def run_eval(agent_id: str, eval_config: dict) -> dict:
     }
 
     if db is not None:
-        await db.eval_results.insert_one({**eval_result})
-        eval_result.pop("_id", None)
+        insert_result = await db.eval_results.insert_one({**eval_result})
+        eval_result["eval_run_id"] = str(insert_result.inserted_id)
 
     print(f"[Eval] Done. Pass rate: {pass_rate}, Consistency: {consistency_score}, Errors: {execution_error_count}")
     return eval_result
