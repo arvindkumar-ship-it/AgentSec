@@ -65,6 +65,13 @@ from config import settings
 security = HTTPBearer()
 
 
+def require_platform_admin(user: User):
+    allowed = {email.strip().casefold() for email in settings.PLATFORM_ADMIN_EMAILS.split(",") if email.strip()}
+    if user.role != "admin" or user.email.casefold() not in allowed:
+        raise HTTPException(403, "Platform administrator access required")
+    return user
+
+
 # ---------- Request schemas ----------
 
 class RegisterRequest(BaseModel):
@@ -123,6 +130,7 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=401, detail="User not found")
 
+    db.expunge(user)  # Read-only identity survives unrelated transaction rollbacks.
     return user
 
 

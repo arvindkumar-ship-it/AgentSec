@@ -2,7 +2,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.sql_models import ScanOwnership
+from models.sql_models import ScanOwnership, AgentOwnership
 
 
 async def create_ownership(db: AsyncSession, mongo_scan_id: str, org_id, user_id):
@@ -37,11 +37,11 @@ async def user_owns_scan(db: AsyncSession, mongo_scan_id: str, org_id) -> bool:
 async def get_org_agent_ids(db: AsyncSession, mongo_db, org_id) -> set[str]:
     scan_ids = await get_org_scan_ids(db, org_id)
     if not scan_ids:
-        return set()
+        return set((await db.execute(select(AgentOwnership.agent_id).where(AgentOwnership.org_id == org_id))).scalars().all())
     cursor = mongo_db.scan_reports.find(
         {"scan_id": {"$in": scan_ids}}, {"agent_id": 1, "_id": 0}
     )
-    agent_ids = set()
+    agent_ids = set((await db.execute(select(AgentOwnership.agent_id).where(AgentOwnership.org_id == org_id))).scalars().all())
     async for doc in cursor:
         if doc.get("agent_id"):
             agent_ids.add(doc["agent_id"])

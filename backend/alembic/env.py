@@ -20,11 +20,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from database import Base
-from models.sql_models import Organization, User, ScanOwnership
-from models.quota_models import Plan, OrganizationPlan, OrganizationQuota, OrganizationUsageDaily, UsageEvent
+from models.sql_models import Organization, User, ScanOwnership, AgentOwnership
+from models.quota_models import Plan, OrganizationPlan, OrganizationQuota, OrganizationUsageDaily, UsageEvent, WorkReservation
 from models.policy_models import OrgPolicyOverride
 from models.audit_models import AuditLog
-from models.billing_models import SSOConfig
+from models.billing_models import SSOConfig, BillingOrder
 
 # add your model's MetaData object here
 # for 'autogenerate' support

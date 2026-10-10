@@ -34,6 +34,7 @@ class ScanRequest(BaseModel):
     run_blackbox_probes: bool = Field(True, description="Run black-box behavioral probes without source code")
 
 class EvalRequest(BaseModel):
+    scan_id: str | None = None
     agent_id: str
     agent_name: str
     endpoint_url: str

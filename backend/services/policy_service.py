@@ -20,6 +20,8 @@ async def get_effective_policies(db: AsyncSession, org_id) -> dict:
         effective[key] = {
             "value": overrides.get(key, default_val),
             "is_override": key in overrides,
+            "enforced": False,
+            "note": "Configuration preview; runtime enforcement is not implemented",
         }
     return effective
 

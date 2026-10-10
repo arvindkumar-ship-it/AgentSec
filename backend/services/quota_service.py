@@ -1,13 +1,15 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from fastapi import HTTPException, Depends
-from sqlalchemy import select, text
+from sqlalchemy import select, text, update, delete, func
+from sqlalchemy.exc import IntegrityError
+from types import SimpleNamespace
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from auth import get_current_user
 from models.sql_models import User
 from database import get_db as get_pg_db
-from models.quota_models import Plan, PlanTierEnum, OrganizationPlan, OrganizationQuota, OrganizationUsageDaily
+from models.quota_models import Plan, PlanTierEnum, OrganizationPlan, OrganizationQuota, OrganizationUsageDaily, WorkReservation
 
 FREE_PLAN_DEFAULTS = {
     "max_scans_per_day": 5,
@@ -26,7 +28,11 @@ async def _get_or_create_free_plan(db: AsyncSession) -> Plan:
         return plan
     plan = Plan(id=uuid.uuid4(), name="free", tier=PlanTierEnum.free, monthly_price=None, description="Default free tier")
     db.add(plan)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        plan = (await db.execute(select(Plan).where(Plan.name == "free"))).scalar_one()
     await db.refresh(plan)
     return plan
 
@@ -45,7 +51,11 @@ async def get_or_create_org_quota(db: AsyncSession, org_id) -> OrganizationQuota
 
     quota = OrganizationQuota(id=uuid.uuid4(), org_id=org_id, plan_id=plan.id, **FREE_PLAN_DEFAULTS)
     db.add(quota)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        quota = (await db.execute(select(OrganizationQuota).where(OrganizationQuota.org_id == org_id))).scalar_one()
     await db.refresh(quota)
     return quota
 
@@ -63,7 +73,11 @@ async def get_or_create_today_usage(db: AsyncSession, org_id) -> OrganizationUsa
         return usage
     usage = OrganizationUsageDaily(id=uuid.uuid4(), org_id=org_id, date=today_dt)
     db.add(usage)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        usage = (await db.execute(select(OrganizationUsageDaily).where(OrganizationUsageDaily.org_id == org_id, OrganizationUsageDaily.date == today_dt))).scalar_one()
     await db.refresh(usage)
     return usage
 
@@ -79,7 +93,7 @@ async def _check_org_active(db: AsyncSession, org_id):
     from models.sql_models import Organization
     result = await db.execute(select(Organization).where(Organization.id == org_id))
     org = result.scalar_one_or_none()
-    if org and org.state == "suspended":
+    if org is None or org.state != "active":
         raise HTTPException(status_code=403, detail="Tenant suspended, contact support.")
 
 
@@ -128,30 +142,61 @@ async def release_eval_usage(db: AsyncSession, org_id):
     await _release_daily_usage(db, org_id, "eval_runs")
 
 
-async def check_scan_quota(
-    current_user: User = Depends(get_current_user),
-    pg_db: AsyncSession = Depends(get_pg_db),
-):
-    await _check_org_active(pg_db, current_user.org_id)
-    await get_or_create_org_quota(pg_db, current_user.org_id)
-    await get_or_create_today_usage(pg_db, current_user.org_id)
+class WorkLease:
+    def __init__(self, db, reservation):
+        self.db = db
+        self.reservation = SimpleNamespace(id=reservation.id, org_id=reservation.org_id, field=reservation.field, date=reservation.date)
+        self.completed = False
 
-    reserved = await _reserve_daily_usage(pg_db, current_user.org_id, "scans_count", "max_scans_per_day")
+    def complete(self):
+        self.completed = True
+
+    async def close(self):
+        row = self.reservation
+        removed = (await self.db.execute(delete(WorkReservation).where(WorkReservation.id == row.id).returning(WorkReservation.id))).first()
+        if removed and not self.completed:
+            column = getattr(OrganizationUsageDaily, row.field)
+            await self.db.execute(update(OrganizationUsageDaily).where(OrganizationUsageDaily.org_id == row.org_id, OrganizationUsageDaily.date == row.date, column > 0).values({row.field: column - 1}))
+        await self.db.commit()
+
+
+async def _reserve_work(db, org_id, field, limit_field):
+    await _check_org_active(db, org_id)
+    await get_or_create_org_quota(db, org_id)
+    await get_or_create_today_usage(db, org_id)
+    # All reservations for an organisation serialize on its quota row in PostgreSQL.
+    quota = (await db.execute(select(OrganizationQuota).where(OrganizationQuota.org_id == org_id).with_for_update())).scalar_one()
+    now = datetime.utcnow()
+    active = (await db.execute(select(func.count()).select_from(WorkReservation).where(WorkReservation.org_id == org_id, WorkReservation.expires_at > now))).scalar_one()
+    if active >= quota.max_concurrent_scans:
+        await db.rollback()
+        raise HTTPException(429, "Concurrent work quota exceeded")
+    day = datetime.combine(now.date(), datetime.min.time())
+    column = getattr(OrganizationUsageDaily, field)
+    reserved = (await db.execute(update(OrganizationUsageDaily).where(OrganizationUsageDaily.org_id == org_id, OrganizationUsageDaily.date == day, column < getattr(quota, limit_field)).values({field: column + 1}).returning(OrganizationUsageDaily.id))).first()
     if not reserved:
-        raise HTTPException(status_code=429, detail="Daily scan quota exceeded")
+        await db.rollback()
+        raise HTTPException(429, "Daily work quota exceeded")
+    row = WorkReservation(id=uuid.uuid4(), org_id=org_id, field=field, date=day, expires_at=now + timedelta(seconds=900))
+    db.add(row)
+    await db.commit()
+    return WorkLease(db, row)
 
 
-async def check_eval_quota(
-    current_user: User = Depends(get_current_user),
-    pg_db: AsyncSession = Depends(get_pg_db),
-):
-    await _check_org_active(pg_db, current_user.org_id)
-    await get_or_create_org_quota(pg_db, current_user.org_id)
-    await get_or_create_today_usage(pg_db, current_user.org_id)
+async def check_scan_quota(current_user: User = Depends(get_current_user), pg_db: AsyncSession = Depends(get_pg_db)):
+    lease = await _reserve_work(pg_db, current_user.org_id, "scans_count", "max_scans_per_day")
+    try:
+        yield lease
+    finally:
+        await lease.close()
 
-    reserved = await _reserve_daily_usage(pg_db, current_user.org_id, "eval_runs", "max_evals_per_day")
-    if not reserved:
-        raise HTTPException(status_code=429, detail="Daily eval quota exceeded")
+
+async def check_eval_quota(current_user: User = Depends(get_current_user), pg_db: AsyncSession = Depends(get_pg_db)):
+    lease = await _reserve_work(pg_db, current_user.org_id, "eval_runs", "max_evals_per_day")
+    try:
+        yield lease
+    finally:
+        await lease.close()
 
 
 # ---------------------------------------------------------------------------

@@ -88,7 +88,7 @@ export interface ScanReport {
   scan_type: string;
   generated_at: string;
   dynamic_testing_performed: boolean;
-  security_score: number;
+  security_score: number | null;
   risk_level: RiskLevel;
   executive_summary: string;
   statistics: Statistics;
@@ -120,7 +120,7 @@ export interface EvalResult {
   agent_id: string;
   scan_id: string;
   run_at: string;
-  pass_rate: number;
+  pass_rate: number | null;
   total_tests: number;
   successful_attacks: number;
   execution_errors: number;
@@ -134,7 +134,7 @@ export interface ScanRun {
   agent_name: string;
   generated_at: string;
   risk_level: RiskLevel;
-  security_score: number;
+  security_score: number | null;
   dynamic_testing_performed: boolean;
   status: string;
 }

@@ -7,7 +7,7 @@
 // // import Link from "next/link";
 
 // // // ─── Score Ring ────────────────────────────────────────────────────────────
-// // function ScoreRing({ score }: { score: number }) {
+// // function ScoreRing({ score }: { score: number | null }) {
 // //   const r = 40;
 // //   const circ = 2 * Math.PI * r;
 // //   const offset = circ - (score / 100) * circ;
@@ -150,7 +150,7 @@
 // //               {/* Security Score */}
 // //               <div className="col-span-1 bg-panel border border-border rounded-xl p-6 flex flex-col items-center justify-center">
 // //                 <div className="text-xs text-gray-500 mb-3 uppercase tracking-widest">Security Score</div>
-// //                 <ScoreRing score={data.latest_scan?.security_score ?? 0} />
+// //                 <ScoreRing score={data.latest_scan?.security_score ?? null} />
 // //                 <div className={`mt-3 text-sm font-medium px-3 py-1 rounded-full ${
 // //                   data.latest_scan?.risk_level === "CRITICAL" ? "severity-CRITICAL" :
 // //                   data.latest_scan?.risk_level === "HIGH" ? "severity-HIGH" :
@@ -263,7 +263,7 @@
 // import UsageCard from "@/components/UsageCard";
 
 // // ─── Score Ring ────────────────────────────────────────────────────────────
-// function ScoreRing({ score }: { score: number }) {
+// function ScoreRing({ score }: { score: number | null }) {
 //   const r = 40;
 //   const circ = 2 * Math.PI * r;
 //   const offset = circ - (score / 100) * circ;
@@ -395,7 +395,7 @@
 //               {/* Security Score */}
 //               <div className="col-span-1 bg-panel border border-border rounded-xl p-6 flex flex-col items-center justify-center">
 //                 <div className="text-xs text-gray-500 mb-3 uppercase tracking-widest">Security Score</div>
-//                 <ScoreRing score={data.latest_scan?.security_score ?? 0} />
+//                 <ScoreRing score={data.latest_scan?.security_score ?? null} />
 //                 <div className={`mt-3 text-sm font-medium px-3 py-1 rounded-full ${
 //                   data.latest_scan?.risk_level === "CRITICAL" ? "severity-CRITICAL" :
 //                   data.latest_scan?.risk_level === "HIGH" ? "severity-HIGH" :
@@ -518,7 +518,8 @@ import Link from "next/link";
 import RouteGuard from "@/components/RouteGuard";
 import UsageCard from "@/components/UsageCard";
 
-function ScoreRing({ score }: { score: number }) {
+function ScoreRing({ score }: { score: number | null }) {
+  if (score == null) return <span className="text-gray-500">Not measured</span>;
   const r = 40;
   const circ = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
@@ -641,7 +642,7 @@ export default function Dashboard() {
               <div className="grid grid-cols-4 gap-4 mb-6">
                 <div className="col-span-1 bg-panel border border-border rounded-xl p-6 flex flex-col items-center justify-center">
                   <div className="text-xs text-muted mb-3 uppercase tracking-widest">Security Score</div>
-                  <ScoreRing score={data.latest_scan?.security_score ?? 0} />
+                  <ScoreRing score={data.latest_scan?.security_score ?? null} />
                   <div className={`mt-3 text-sm font-medium px-3 py-1 rounded-full ${
                     data.latest_scan?.risk_level === "CRITICAL" ? "severity-CRITICAL" :
                     data.latest_scan?.risk_level === "HIGH" ? "severity-HIGH" :

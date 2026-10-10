@@ -35,7 +35,7 @@ export default function SSOPage() {
     e.preventDefault();
     setMsg("");
     try {
-      await agentSecAPI.setSSOConfig(form);
+      await agentSecAPI.setSSOConfig({ ...form, client_secret: "", sso_only: false });
       setMsg("SSO config saved.");
       setConfigured(true);
     } catch (err: any) {
@@ -82,7 +82,7 @@ export default function SSOPage() {
           <div>
             <label className="block text-sm text-muted mb-1">Client Secret</label>
             <input
-              type="password"
+              type="password" disabled
               value={form.client_secret}
               onChange={(e) => setForm({ ...form, client_secret: e.target.value })}
               className="w-full bg-surface border border-border p-2 rounded-lg"
@@ -112,11 +112,11 @@ export default function SSOPage() {
 
           <label className="flex items-center gap-2 text-sm">
             <input
-              type="checkbox"
+              type="checkbox" disabled
               checked={form.sso_only}
               onChange={(e) => setForm({ ...form, sso_only: e.target.checked })}
             />
-            SSO only (disable password login for this org)
+            SSO login is not implemented; password login remains enabled
           </label>
 
           <button type="submit" className="bg-accent text-white px-5 py-2 rounded-full text-sm">

@@ -423,8 +423,9 @@ from pydantic import BaseModel, Field
 from typing import Dict, Any, List, Optional
 from core.api_format_detector import APIFormatDetector, JSONPathExtractor
 from core.curl_parser import CurlParser
-import httpx
+from core import http_safety as httpx
 import json
+from core.request_templates import render_payload
 
 from auth import get_current_user
 from models.sql_models import User
@@ -532,7 +533,7 @@ async def test_connection(request: TestConnectionRequest, current_user: User = D
         test_payload = "Hello, this is a test message from AgentSec."
         try:
             body_template = config["bodyTemplate"]
-            body = json.loads(body_template.replace('{{PAYLOAD}}', test_payload))
+            body = render_payload(json.loads(body_template), test_payload)
         except json.JSONDecodeError as e:
             return TestConnectionResponse(success=False, error=f"Invalid JSON in body template: {str(e)}")
 

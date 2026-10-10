@@ -228,8 +228,9 @@
 
 
 
+import json
 from typing import Any, Optional, Dict
-import httpx
+from core import http_safety as httpx
 
 
 class APIFormatDetector:
@@ -385,7 +386,7 @@ class APIFormatDetector:
 
                     results.append({
                         "status_code": resp.status_code,
-                        "request_format": probe["body"],
+                        "request_format": json.loads(json.dumps(probe["body"]).replace("Hello", "{{PAYLOAD}}")),
                         "content_type": probe["content_type"],
                         "response_data": response_data,
                         "extracted_message": extracted,

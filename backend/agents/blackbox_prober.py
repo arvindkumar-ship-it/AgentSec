@@ -470,7 +470,7 @@ HONEST LIMITS (stated, not hidden):
   with what it is testing so the user can understand exactly what
   each probe was looking for.
 """
-import httpx
+from core import http_safety as httpx
 import asyncio
 import time
 import json
@@ -523,7 +523,7 @@ async def _send_probe(
                 "status_code": resp.status_code,
                 "response_text": text,
                 "elapsed_seconds": round(elapsed, 2),
-                "error": None,
+                "error": f"HTTP_{resp.status_code}" if resp.status_code >= 400 else None,
             }
     except httpx.TimeoutException:
         return {

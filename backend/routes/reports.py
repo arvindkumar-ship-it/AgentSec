@@ -172,13 +172,11 @@ async def _get_scan(scan_id: str) -> dict:
     return doc
 
 
-async def _get_latest_eval(agent_id: str, scan_id: str) -> dict | None:
+async def _get_latest_eval(agent_id: str, scan_id: str, org_id: str) -> dict | None:
     db = get_db()
     doc = await db.eval_results.find_one(
-        {"agent_id": agent_id, "scan_id": scan_id}, sort=[("run_at", -1)],
+        {"agent_id": agent_id, "scan_id": scan_id, "org_id": org_id}, sort=[("run_at", -1)],
     )
-    if not doc:
-        doc = await db.eval_results.find_one({"agent_id": agent_id}, sort=[("run_at", -1)])
     return doc
 
 
@@ -196,7 +194,7 @@ async def get_combined_report(
     await _check_ownership(scan_id, current_user, pg_db)
     scan_doc = await _get_scan(scan_id)
     agent_id = scan_doc.get("agent_id")
-    eval_doc = await _get_latest_eval(agent_id, scan_id)
+    eval_doc = await _get_latest_eval(agent_id, scan_id, str(current_user.org_id))
     html = builder.render_html(scan_doc, eval_doc)
     builder.save_html(scan_id, html)
     return HTMLResponse(content=html)
@@ -212,7 +210,7 @@ async def get_combined_report_json(
     scan_doc = await _get_scan(scan_id)
     scan_doc.pop("_id", None)
     agent_id = scan_doc.get("agent_id")
-    eval_doc = await _get_latest_eval(agent_id, scan_id)
+    eval_doc = await _get_latest_eval(agent_id, scan_id, str(current_user.org_id))
     if eval_doc:
         eval_doc.pop("_id", None)
     return {"status": "completed", "report": scan_doc}
@@ -227,7 +225,7 @@ async def download_pdf(
     await _check_ownership(scan_id, current_user, pg_db)
     scan_doc = await _get_scan(scan_id)
     agent_id = scan_doc.get("agent_id")
-    eval_doc = await _get_latest_eval(agent_id, scan_id)
+    eval_doc = await _get_latest_eval(agent_id, scan_id, str(current_user.org_id))
     html = builder.render_html(scan_doc, eval_doc)
     try:
         pdf_path = builder.render_pdf(html, scan_id)
