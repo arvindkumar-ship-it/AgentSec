@@ -328,7 +328,9 @@ here:
    worst possible failure mode for a security tool.
 """
 import asyncio
-import httpx
+import uuid
+from core.verdicts import is_measured_verdict
+from core import http_safety as httpx
 from datetime import datetime, timedelta
 from core.payloads import get_all_payloads
 from agents.verifier import verify_attack
@@ -416,6 +418,7 @@ async def run_eval(agent_id: str, eval_config: dict) -> dict:
 
                     body = {"messages": [{"role": "user", "content": attack["payload"]}]}
                     resp = await client.post(endpoint_url, json=body, headers=headers)
+                    resp.raise_for_status()
                     data = resp.json()
 
                     if "choices" in data:
@@ -458,7 +461,9 @@ async def run_eval(agent_id: str, eval_config: dict) -> dict:
     )
 
     # ── Metrics (only computed over results that actually executed) ──
-    successful_attacks = [r for r in results if r.get("verdict", {}).get("success")]
+    unjudged = [r for r in results if not is_measured_verdict(r.get("verdict"))]
+    results = [r for r in results if is_measured_verdict(r.get("verdict"))]
+    successful_attacks = [r for r in results if r["verdict"]["success"]]
     total_measured = len(results)
     pass_rate = int((total_measured - len(successful_attacks)) / total_measured * 100) if total_measured > 0 else None
 
@@ -474,6 +479,12 @@ async def run_eval(agent_id: str, eval_config: dict) -> dict:
             breakdown[cat]["passed"] += 1
 
     eval_result = {
+        "eval_run_id": str(uuid.uuid4()),
+        "org_id": eval_config.get("org_id"),
+        "scan_id": eval_config.get("scan_id"),
+        "unjudged_count": len(unjudged),
+        "attempted_tests": len(test_payloads),
+        "measurement_coverage": len(results) / len(test_payloads) if test_payloads else 0,
         "agent_id": agent_id,
         "agent_name": agent_name,
         "run_at": datetime.utcnow().isoformat(),
@@ -500,8 +511,7 @@ async def run_eval(agent_id: str, eval_config: dict) -> dict:
     }
 
     if db is not None:
-        insert_result = await db.eval_results.insert_one({**eval_result})
-        eval_result["eval_run_id"] = str(insert_result.inserted_id)
+        await db.eval_results.insert_one({**eval_result})
 
     print(f"[Eval] Done. Pass rate: {pass_rate}, Consistency: {consistency_score}, Errors: {execution_error_count}")
     return eval_result
@@ -532,6 +542,7 @@ async def run_consistency_check(endpoint_url: str, auth_header: str = None, n: i
             for _ in range(n):
                 body = {"messages": [{"role": "user", "content": TEST_PROMPT}]}
                 resp = await client.post(endpoint_url, json=body, headers=headers)
+                resp.raise_for_status()
                 data = resp.json()
                 if "choices" in data:
                     responses.append(data["choices"][0]["message"]["content"])
@@ -570,7 +581,7 @@ Return ONLY JSON, no markdown fences: {{"consistency_score": integer_0_to_100}}"
     return max(0, min(100, score))
 
 
-async def get_eval_trend(agent_id: str, days: int = 30) -> list[dict]:
+async def get_eval_trend(agent_id: str, days: int = 30, *, org_id: str) -> list[dict]:
     """Get pass rate trend over last N days, used for the dashboard chart."""
     db = get_db()
     if db is None:
@@ -578,14 +589,14 @@ async def get_eval_trend(agent_id: str, days: int = 30) -> list[dict]:
 
     since = datetime.utcnow() - timedelta(days=days)
     cursor = db.eval_results.find(
-        {"agent_id": agent_id, "run_at": {"$gte": since.isoformat()}},
+        {"agent_id": agent_id, "org_id": org_id, "run_at": {"$gte": since.isoformat()}},
         {"run_at": 1, "pass_rate": 1, "consistency_score": 1, "_id": 0},
     ).sort("run_at", 1)
 
     return [doc async for doc in cursor]
 
 
-async def detect_regression(agent_id: str) -> dict:
+async def detect_regression(agent_id: str, *, org_id: str) -> dict:
     """
     Compare last 2 eval runs with a measured pass_rate. Alert if it
     dropped more than 10 points. Runs where pass_rate is None (no
@@ -597,7 +608,7 @@ async def detect_regression(agent_id: str) -> dict:
         return {"regression_detected": False}
 
     cursor = db.eval_results.find(
-        {"agent_id": agent_id, "pass_rate": {"$ne": None}},
+        {"agent_id": agent_id, "org_id": org_id, "pass_rate": {"$ne": None}},
         {"run_at": 1, "pass_rate": 1},
     ).sort("run_at", -1).limit(2)
 

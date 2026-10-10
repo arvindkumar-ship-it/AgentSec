@@ -17,7 +17,7 @@ export function ReportSectionEval({ evalResult }: { evalResult: EvalResult | nul
       </h2>
       <div className="mt-4">
         <MetricGrid>
-          <MetricCard label="Eval pass rate" value={`${evalResult.pass_rate}%`} />
+          <MetricCard label="Eval pass rate" value={evalResult.pass_rate == null ? "Not measured" : `${evalResult.pass_rate}%`} />
           <MetricCard label="Total tests" value={evalResult.total_tests} />
           <MetricCard label="Successful attacks" value={evalResult.successful_attacks} />
           <MetricCard label="Execution errors" value={evalResult.execution_errors} />

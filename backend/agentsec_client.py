@@ -9,44 +9,49 @@ import httpx
 
 
 class AgentShieldClient:
-    def __init__(self, agent_id: str, api_url: str = "http://localhost:8000"):
+    def __init__(self, agent_id: str, api_url: str = "http://localhost:8000", access_token: str | None = None):
         self.agent_id = agent_id
         self.api_url = api_url.rstrip("/")
+        self.headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
+
+    def _request(self, method: str, path: str, **kwargs):
+        response = httpx.request(method, f"{self.api_url}{path}", headers=self.headers, **kwargs)
+        response.raise_for_status()
+        return response.json()
 
     def check_outbound(self, response_text: str) -> dict:
         """Check if agent response is safe before sending to user."""
         try:
-            r = httpx.post(
-                f"{self.api_url}/shield/check-outbound",
+            result = self._request("POST", "/shield/check-outbound",
                 json={"agent_id": self.agent_id, "response_text": response_text},
                 timeout=15.0
             )
-            return r.json()
+            if (not isinstance(result, dict) or type(result.get("safe")) is not bool
+                    or result.get("action") not in {"ALLOW", "WARN", "BLOCK"}
+                    or result["safe"] != (result["action"] != "BLOCK")):
+                raise ValueError("Invalid Shield decision")
+            return result
         except Exception as e:
-            # Fail open (allow) if Shield is unreachable
-            return {"safe": True, "response": response_text, "action": "ALLOW", "error": str(e)}
+            return {"safe": False, "response": "Response withheld: Shield verification unavailable.",
+                    "action": "BLOCK", "error": type(e).__name__}
 
     def get_logs(self, hours: int = 24) -> list:
         try:
-            r = httpx.get(f"{self.api_url}/shield/logs/{self.agent_id}?hours={hours}", timeout=10.0)
-            return r.json().get("logs", [])
+            return self._request("GET", f"/shield/logs/{self.agent_id}", params={"hours": hours}, timeout=10.0).get("logs", [])
         except Exception:
             return []
 
     def get_checkpoints(self) -> list:
         try:
-            r = httpx.get(f"{self.api_url}/shield/checkpoints/{self.agent_id}", timeout=10.0)
-            return r.json().get("checkpoints", [])
+            return self._request("GET", f"/shield/checkpoints/{self.agent_id}", timeout=10.0).get("checkpoints", [])
         except Exception:
             return []
 
     def revert(self, checkpoint_id: str) -> dict:
         try:
-            r = httpx.post(
-                f"{self.api_url}/shield/revert",
+            return self._request("POST", "/shield/revert",
                 json={"agent_id": self.agent_id, "checkpoint_id": checkpoint_id},
                 timeout=10.0
             )
-            return r.json()
         except Exception as e:
             return {"success": False, "error": str(e)}

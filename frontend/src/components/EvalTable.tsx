@@ -29,7 +29,7 @@ export function EvalTable({ evals }: { evals: EvalResult[] }) {
           {evals.map((ev, idx) => (
             <tr key={ev.eval_id ?? idx} className="border-b border-gray-100 last:border-0 hover:bg-gray-50">
               <td className="px-4 py-3 text-gray-500">{formatDate(ev.run_at)}</td>
-              <td className="px-4 py-3 text-gray-900">{ev.pass_rate}%</td>
+              <td className="px-4 py-3 text-gray-900">{ev.pass_rate == null ? "Not measured" : `${ev.pass_rate}%`}</td>
               <td className="px-4 py-3 text-gray-900">{ev.total_tests}</td>
               <td className="px-4 py-3 text-gray-900">{ev.execution_errors}</td>
               <td className="px-4 py-3 max-w-xs truncate text-gray-500">{ev.note ?? "—"}</td>

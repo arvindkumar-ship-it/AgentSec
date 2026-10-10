@@ -188,8 +188,8 @@ export default function ScanPage() {
   };
 
   const scoreColor = !report ? "" :
-    report.security_score >= 80 ? "text-green-400" :
-    report.security_score >= 60 ? "text-yellow-400" : "text-red-400";
+    (report.security_score ?? -1) >= 80 ? "text-green-400" :
+    (report.security_score ?? -1) >= 60 ? "text-yellow-400" : "text-red-400";
 
   const TABS: { key: TabType; label: string; count?: number }[] = report ? [
     { key: "static", label: `Static (${report.static_findings?.length ?? 0})` },
@@ -334,7 +334,7 @@ export default function ScanPage() {
                     )}
                   </div>
                   <span className={`text-4xl font-bold font-mono ${scoreColor}`}>
-                    {report.security_score}<span className="text-base text-gray-600">/100</span>
+                    {report.security_score ?? "Not measured"}{report.security_score != null && <span className="text-base text-gray-600">/100</span>}
                   </span>
                 </div>
                 <p className="text-sm text-gray-400 mb-3">{report.executive_summary}</p>

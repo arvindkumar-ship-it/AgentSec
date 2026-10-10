@@ -142,6 +142,7 @@
 #-----------------------------------------------------------------------------
 
 from fastapi import APIRouter, HTTPException, Depends
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.schemas import ScanRequest
 from layers.scan import run_full_scan
@@ -153,6 +154,7 @@ from services.quota_service import check_scan_quota, release_scan_usage
 from auth import get_current_user
 from models.sql_models import User
 from database import get_db as get_pg_db
+from services.agent_access import ensure_agent_access
 from services.ownership_service import create_ownership, get_org_scan_ids, user_owns_scan, get_org_agent_ids
 
 router = APIRouter(prefix="/scan", tags=["Agent Scan"])
@@ -165,7 +167,7 @@ async def trigger_scan(
     scan_request: ScanRequest,
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
-    _: None = Depends(check_scan_quota),
+    lease = Depends(check_scan_quota),
 ):
     """
     Run a full security scan on your agent.
@@ -176,6 +178,7 @@ async def trigger_scan(
     from sqlalchemy import select
     from models.sql_models import ScanOwnership
 
+    await ensure_agent_access(pg_db, get_db(), scan_request.agent_id, current_user, create=True)
     recent_cutoff = datetime.utcnow() - timedelta(seconds=30)
     recent = await pg_db.execute(
         select(ScanOwnership).where(
@@ -194,11 +197,11 @@ async def trigger_scan(
             return {"status": "completed", "report": existing_doc, "note": "Duplicate request detected — returned existing scan."}
 
     try:
-        config = scan_request.model_dump()
-        report = await run_full_scan(
+        config = {**scan_request.model_dump(), "org_id": str(current_user.org_id)}
+        report = await asyncio.wait_for(run_full_scan(
             agent_id=scan_request.agent_id,
             scan_config=config,
-        )
+        ), timeout=600)
 
         scan_id = report.get("scan_id")
         if scan_id:
@@ -210,10 +213,12 @@ async def trigger_scan(
             )
             # increment_usage call REMOVED — quota already reserved atomically in check_scan_quota
 
+        lease.complete()
         return {"status": "completed", "report": report}
-    except Exception as e:
-        await release_scan_usage(db=pg_db, org_id=current_user.org_id)
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Work failed; quota was refunded")
 
 
 @router.get("/reports/{agent_id}")

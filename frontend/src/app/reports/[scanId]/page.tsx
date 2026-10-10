@@ -10,10 +10,11 @@ import { ReportSectionDynamicAttacks } from "@/components/report/ReportSectionDy
 import { ReportSectionTopFixes } from "@/components/report/ReportSectionTopFixes";
 import { ReportSectionRawResults } from "@/components/report/ReportSectionRawResults";
 
-export default async function ReportPage({ params }: { params: { scanId: string } }) {
+export default async function ReportPage({ params }: { params: Promise<{ scanId: string }> }) {
+  const { scanId } = await params;
   let scanReport;
   try {
-    scanReport = await getScanReport(params.scanId);
+    scanReport = await getScanReport(scanId);
   } catch (err) {
     if (err instanceof ApiError && err.status === 404) notFound();
     throw err;

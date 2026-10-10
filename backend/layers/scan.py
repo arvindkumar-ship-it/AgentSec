@@ -1047,7 +1047,10 @@ Then runs attack payloads in sandbox and generates full report.
 """
 import re
 import ast
-import httpx
+import uuid
+from core import http_safety as httpx
+from core.request_templates import render_payload
+from core.verdicts import is_measured_verdict
 import asyncio
 from datetime import datetime
 from agents.attack_generator import generate_targeted_attacks
@@ -1198,9 +1201,21 @@ def check_source_code(source_code: str) -> list[dict]:
     findings = []
     seen = {}  # dotted_name -> count, to report occurrence counts without duplicate entries
 
+    aliases = {}
+    for statement in tree.body:
+        if isinstance(statement, ast.Import):
+            for alias in statement.names:
+                aliases[alias.asname or alias.name.split(".")[0]] = alias.name if alias.asname else alias.name.split(".")[0]
+        elif isinstance(statement, ast.ImportFrom) and statement.module:
+            for alias in statement.names:
+                aliases[alias.asname or alias.name] = f"{statement.module}.{alias.name}"
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             dotted = _call_to_dotted_name(node.func)
+            if dotted:
+                root, dot, suffix = dotted.partition(".")
+                dotted = aliases.get(root, root) + (dot + suffix if dot else "")
             if dotted and dotted in _DANGEROUS_CALL_SIGNATURES:
                 seen[dotted] = seen.get(dotted, 0) + 1
 
@@ -1280,7 +1295,7 @@ def check_tool_schemas(tools: list[dict]) -> list[dict]:
 #         headers["Authorization"] = auth_header
 
 #     # Default format: OpenAI-compatible chat
-#     body = request_format or {"messages": [{"role": "user", "content": payload}]}
+#     body = render_payload(request_format, payload) if request_format else {"messages": [{"role": "user", "content": payload}]}
 
 #     try:
 #         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -1335,7 +1350,7 @@ async def run_attack_on_endpoint(
                 resp = await client.post(endpoint_url, data=form_body, headers=headers)
             else:
                 headers["Content-Type"] = "application/json"
-                body = request_format or {"messages": [{"role": "user", "content": payload}]}
+                body = render_payload(request_format, payload) if request_format else {"messages": [{"role": "user", "content": payload}]}
                 resp = await client.post(endpoint_url, json=body, headers=headers)
 
             if resp.status_code >= 400:
@@ -1599,7 +1614,8 @@ async def run_full_scan(agent_id: str, scan_config: dict) -> dict:
     )
 
     report["agent_id"] = agent_id
-    report["scan_id"] = f"scan_{agent_id}_{int(datetime.utcnow().timestamp())}"
+    report["scan_id"] = "scan_" + str(uuid.uuid4())
+    report["org_id"] = scan_config.get("org_id")
     report["scan_type"] = "full" if endpoint_url else "static_only"
     report["attack_generation"] = generation_metadata
     report["execution_errors"] = {
@@ -1620,8 +1636,8 @@ async def run_full_scan(agent_id: str, scan_config: dict) -> dict:
     bb_high = sum(1 for f in bb_findings if f.get("severity") == "HIGH")
 
     # Wire multiturn and document injection into report
-    mt_successful = [r for r in multiturn_results if r.get("verdict", {}) and r.get("verdict", {}).get("success")]
-    doc_successful = [r for r in document_injection_results if r.get("verdict", {}) and r.get("verdict", {}).get("success")]
+    mt_successful = [r for r in multiturn_results if is_measured_verdict(r.get("verdict")) and r["verdict"]["success"]]
+    doc_successful = [r for r in document_injection_results if is_measured_verdict(r.get("verdict")) and r["verdict"]["success"]]
 
     report["multiturn_attacks"] = {
         "total_chains": len(multiturn_results),
@@ -1656,8 +1672,8 @@ async def run_full_scan(agent_id: str, scan_config: dict) -> dict:
     }
 
     # Recalculate security_score to include multiturn + doc injection failures
-    mt_executed = [r for r in multiturn_results if not r.get("execution_failed")]
-    doc_executed = [r for r in document_injection_results if not r.get("execution_failed")]
+    mt_executed = [r for r in multiturn_results if not r.get("execution_failed") and is_measured_verdict(r.get("verdict"))]
+    doc_executed = [r for r in document_injection_results if not r.get("execution_failed") and is_measured_verdict(r.get("verdict"))]
 
     all_successful = (
         len(report.get("successful_attacks", []))

@@ -69,6 +69,7 @@
 
 
 from fastapi import APIRouter, HTTPException, Depends
+import asyncio
 from sqlalchemy.ext.asyncio import AsyncSession
 from models.schemas import EvalRequest
 from layers.eval_layer import run_eval, get_eval_trend, detect_regression
@@ -78,7 +79,8 @@ from core.limiter import limiter
 from auth import get_current_user
 from models.sql_models import User
 from database import get_db as get_pg_db
-from services.ownership_service import create_ownership, get_org_scan_ids, get_org_agent_ids
+from services.agent_access import ensure_agent_access
+from services.ownership_service import create_ownership, get_org_scan_ids, get_org_agent_ids, user_owns_scan
 from services.quota_service import check_eval_quota, release_eval_usage
 
 router = APIRouter(prefix="/eval", tags=["Agent Eval"])
@@ -91,10 +93,16 @@ async def trigger_eval(
     eval_request: EvalRequest,
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
-    _: None = Depends(check_eval_quota),
+    lease = Depends(check_eval_quota),
 ):
     try:
-        result = await run_eval(agent_id=eval_request.agent_id, eval_config=eval_request.model_dump())
+        await ensure_agent_access(pg_db, get_db(), eval_request.agent_id, current_user, create=True)
+        if eval_request.scan_id:
+            if not await user_owns_scan(pg_db, eval_request.scan_id, current_user.org_id):
+                raise HTTPException(403, "Access denied to this scan")
+            if not await get_db().scan_reports.find_one({"scan_id": eval_request.scan_id, "agent_id": eval_request.agent_id}):
+                raise HTTPException(422, "Scan does not belong to this agent")
+        result = await asyncio.wait_for(run_eval(agent_id=eval_request.agent_id, eval_config={**eval_request.model_dump(), "org_id": str(current_user.org_id)}), timeout=600)
 
         scan_id = result.get("eval_run_id")
         if scan_id:
@@ -104,10 +112,12 @@ async def trigger_eval(
             )
             
 
+        lease.complete()
         return {"status": "completed", "result": result}
-    except Exception as e:
-        await release_eval_usage(db=pg_db, org_id=current_user.org_id)
-        raise HTTPException(status_code=500, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=500, detail="Work failed; quota was refunded")
 
 
 @router.get("/trend/{agent_id}")
@@ -120,7 +130,7 @@ async def get_trend(
     org_agent_ids = await get_org_agent_ids(pg_db, db, current_user.org_id)
     if agent_id not in org_agent_ids:
         raise HTTPException(status_code=403, detail="Access denied to this agent")
-    trend = await get_eval_trend(agent_id=agent_id, days=days)
+    trend = await get_eval_trend(agent_id=agent_id, days=days, org_id=str(current_user.org_id))
     return {"agent_id": agent_id, "trend": trend, "days": days}
 
 
@@ -134,7 +144,7 @@ async def check_regression(
     org_agent_ids = await get_org_agent_ids(pg_db, db, current_user.org_id)
     if agent_id not in org_agent_ids:
         raise HTTPException(status_code=403, detail="Access denied to this agent")
-    result = await detect_regression(agent_id=agent_id)
+    result = await detect_regression(agent_id=agent_id, org_id=str(current_user.org_id))
     return result
 
 
@@ -147,7 +157,7 @@ async def get_eval_history(
     db = get_db()
     org_scan_ids = await get_org_scan_ids(pg_db, current_user.org_id)
     cursor = db.eval_results.find(
-        {"agent_id": agent_id, "scan_id": {"$in": org_scan_ids}},
+        {"agent_id": agent_id, "org_id": str(current_user.org_id)},
         {"failed_attacks": 0}
     ).sort("run_at", -1).limit(limit)
     history = []
@@ -167,7 +177,7 @@ async def list_evals_for_agent(
 ):
     db = get_db()
     org_scan_ids = await get_org_scan_ids(pg_db, current_user.org_id)
-    query = {"agent_id": agent_id, "scan_id": {"$in": org_scan_ids}}
+    query = {"agent_id": agent_id, "org_id": str(current_user.org_id)}
     if scan_id:
         query["scan_id"] = scan_id if scan_id in org_scan_ids else "__none__"
     cursor = db.eval_results.find(query).sort("run_at", -1)

@@ -31,6 +31,7 @@ export default function PoliciesPage() {
     <RouteGuard adminOnly>
       <Navbar />
       <div className="p-6 max-w-2xl mx-auto text-gray-900 space-y-6">
+        <p className="text-sm text-gray-500 mb-4">Configuration preview only. Tenant overrides are not enforced; updates are disabled.</p>
         <h1 className="text-2xl font-bold">Policy Settings</h1>
 
         {policies.prompt_injection_strictness && (

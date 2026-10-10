@@ -125,7 +125,7 @@ async def get_dashboard_summary(
     org_scan_ids = await get_org_scan_ids(pg_db, current_user.org_id)
 
     latest_scan = await db.scan_reports.find_one(
-        {"agent_id": agent_id, "scan_id": {"$in": org_scan_ids}},
+        {"agent_id": agent_id, "org_id": str(current_user.org_id)},
         {"scan_id": 1, "security_score": 1, "risk_level": 1, "generated_at": 1,
          "statistics": 1, "executive_summary": 1, "_id": 0},
         sort=[("generated_at", -1)]
@@ -142,7 +142,7 @@ async def get_dashboard_summary(
         shield_stats[doc["_id"]] = doc["count"]
 
     latest_eval = await db.eval_results.find_one(
-        {"agent_id": agent_id, "scan_id": {"$in": org_scan_ids}},
+        {"agent_id": agent_id, "org_id": str(current_user.org_id)},
         {"pass_rate": 1, "consistency_score": 1, "run_at": 1,
          "total_tests": 1, "successful_attacks": 1, "_id": 0},
         sort=[("run_at", -1)]
@@ -150,7 +150,7 @@ async def get_dashboard_summary(
 
     trend_since = datetime.utcnow() - timedelta(days=14)
     trend_cursor = db.eval_results.find(
-        {"agent_id": agent_id, "scan_id": {"$in": org_scan_ids}, "run_at": {"$gte": trend_since.isoformat()}},
+        {"agent_id": agent_id, "org_id": str(current_user.org_id), "run_at": {"$gte": trend_since.isoformat()}},
         {"run_at": 1, "pass_rate": 1, "_id": 0}
     ).sort("run_at", 1)
     trend = [doc async for doc in trend_cursor]

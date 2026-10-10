@@ -103,7 +103,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 from datetime import datetime, timedelta
 
-from auth import get_current_user
+from auth import get_current_user, require_platform_admin
 from models.sql_models import User, Organization, ScanOwnership
 from database import get_db as get_pg_db
 from core.db import get_db
@@ -121,8 +121,7 @@ async def get_system_stats(
     pg_db: AsyncSession = Depends(get_pg_db),
 ):
     """Internal system stats. Sirf admin role wale users access kar sakte hain."""
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_platform_admin(current_user)
 
     org_count = await pg_db.execute(select(func.count(Organization.id)))
     user_count = await pg_db.execute(select(func.count(User.id)))
@@ -152,8 +151,7 @@ async def list_organizations(
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
 ):
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_platform_admin(current_user)
 
     orgs = (await pg_db.execute(select(Organization))).scalars().all()
     grid = []
@@ -187,8 +185,7 @@ async def suspend_tenant(
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
 ):
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_platform_admin(current_user)
 
     org = (await pg_db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
     if not org:
@@ -206,8 +203,7 @@ async def reactivate_tenant(
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
 ):
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_platform_admin(current_user)
 
     org = (await pg_db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
     if not org:
@@ -225,8 +221,7 @@ async def offboard_tenant(
     current_user: User = Depends(get_current_user),
     pg_db: AsyncSession = Depends(get_pg_db),
 ):
-    if current_user.role.value != "admin":
-        raise HTTPException(status_code=403, detail="Admin access required")
+    require_platform_admin(current_user)
 
     org = (await pg_db.execute(select(Organization).where(Organization.id == org_id))).scalar_one_or_none()
     if not org:

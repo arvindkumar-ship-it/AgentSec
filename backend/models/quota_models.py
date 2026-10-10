@@ -107,3 +107,12 @@ class UsageEvent(Base):
 
     organization = relationship("Organization", back_populates="usage_events")
     user = relationship("User", back_populates="usage_events")
+
+
+class WorkReservation(Base):
+    __tablename__ = "work_reservations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False, index=True)
+    field = Column(String, nullable=False)
+    date = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False)

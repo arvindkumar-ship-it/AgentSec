@@ -338,6 +338,7 @@ CHANGELOG (fixes applied):
 """
 from core.llm_config import call_llm
 from core.token_utils import truncate_for_judge, MAX_TOKENS, INPUT_TRUNCATION, log_llm_call
+from core.verdicts import AttackVerdict, SafetyVerdict, fail_closed
 import json
 import re
 
@@ -523,14 +524,12 @@ async def _llm_judge_pass(payload: str, agent_response: str, category: str, temp
         return None
 
     parsed = _strict_json_parse(raw)
-    if parsed is None or "success" not in parsed:
+    if not isinstance(parsed, dict):
         return None
-    parsed["success"] = bool(parsed["success"])
     try:
-        parsed["confidence"] = int(parsed.get("confidence", 50))
-    except (TypeError, ValueError):
-        parsed["confidence"] = 50
-    return parsed
+        return AttackVerdict.model_validate(parsed).model_dump()
+    except ValueError:
+        return None
 
 
 async def verify_attack(payload: str, agent_response: str, category: str) -> dict:
@@ -663,15 +662,10 @@ async def check_response_safety(response_text: str) -> dict:
         }
 
     parsed = _strict_json_parse(raw)
-    if parsed is None or "action" not in parsed:
-        return {
-            "safe": False,
-            "issues": ["Safety checker returned unparseable output; failing closed."],
-            "severity": "MEDIUM",
-            "action": "BLOCK",
-        }
-
-    parsed.setdefault("safe", parsed.get("action") == "ALLOW")
-    parsed.setdefault("issues", [])
-    parsed.setdefault("severity", "LOW")
-    return parsed
+    try:
+        decision = SafetyVerdict.model_validate(parsed)
+    except ValueError:
+        return fail_closed("Safety checker returned an invalid result schema.")
+    if (decision.action == "BLOCK" and decision.safe) or (decision.action != "BLOCK" and not decision.safe):
+        return fail_closed("Safety checker returned inconsistent safety/action fields.")
+    return decision.model_dump()

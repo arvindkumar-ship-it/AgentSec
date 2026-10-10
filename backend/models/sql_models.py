@@ -53,3 +53,12 @@ class ScanOwnership(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
 
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+
+class AgentOwnership(Base):
+    """Agent IDs are globally unique; registration does not require a scan."""
+    __tablename__ = "agent_ownership"
+    agent_id = Column(String, primary_key=True)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)

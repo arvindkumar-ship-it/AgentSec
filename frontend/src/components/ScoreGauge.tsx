@@ -1,4 +1,5 @@
-export function ScoreGauge({ score }: { score: number }) {
+export function ScoreGauge({ score }: { score: number | null }) {
+  if (score == null) return <span className="text-gray-500">Not measured</span>;
   const clamped = Math.max(0, Math.min(100, score));
   const radius = 42;
   const circumference = 2 * Math.PI * radius;

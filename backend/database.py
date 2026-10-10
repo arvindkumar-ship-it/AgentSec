@@ -10,7 +10,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    connect_args={"ssl": "require"},
+    connect_args={"ssl": "require"} if DATABASE_URL and DATABASE_URL.startswith("postgresql") and os.getenv("DATABASE_SSL", "require") == "require" else {},
     pool_pre_ping=True,   # har use se pehle connection health check karega
     pool_recycle=300,     # 5 min se purani connections ko refresh kar dega
 )

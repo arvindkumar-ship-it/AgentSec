@@ -8,13 +8,17 @@ import razorpay
 from auth import get_current_user
 from models.sql_models import User
 from models.quota_models import Plan, OrganizationPlan, OrganizationQuota, OrgPlanStatusEnum
-from models.billing_models import SSOConfig
+from models.billing_models import SSOConfig, BillingOrder
 from database import get_db as get_pg_db
 from services.audit_service import write_audit
 
 router = APIRouter(prefix="/billing", tags=["Billing"])
 
-razorpay_client = razorpay.Client(auth=(os.environ["RAZORPAY_KEY_ID"], os.environ["RAZORPAY_KEY_SECRET"]))
+def payment_client():
+    key, secret = os.getenv("RAZORPAY_KEY_ID"), os.getenv("RAZORPAY_KEY_SECRET")
+    if not key or not secret:
+        raise HTTPException(503, "Payment gateway is not configured")
+    return razorpay.Client(auth=(key, secret))
 
 PLAN_QUOTA_MAP = {
     "free": {"max_scans_per_day": 5, "max_evals_per_day": 5, "max_concurrent_scans": 2, "max_storage_mb": 500, "max_users": 3, "max_targets": 5},
@@ -67,6 +71,8 @@ async def change_plan(payload: PlanChangeRequest, current_user: User = Depends(g
     if payload.plan_name not in PLAN_QUOTA_MAP:
         raise HTTPException(status_code=400, detail="Invalid plan name")
 
+    if payload.plan_name != "free":
+        raise HTTPException(403, "Paid plans require a verified captured payment")
     new_limits = await apply_plan_change(pg_db, current_user, payload.plan_name)
     await write_audit(pg_db, org_id=current_user.org_id, user_id=current_user.id, action="plan_change", target_id=payload.plan_name, metadata=new_limits)
     return {"status": "plan_updated", "plan": payload.plan_name, "quotas": new_limits}
@@ -77,7 +83,7 @@ class CreateOrderRequest(BaseModel):
 
 
 @router.post("/create-order")
-async def create_order(payload: CreateOrderRequest, current_user: User = Depends(get_current_user)):
+async def create_order(payload: CreateOrderRequest, current_user: User = Depends(get_current_user), pg_db: AsyncSession = Depends(get_pg_db)):
     if current_user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
     if payload.plan_name not in PLAN_PRICE_MAP:
@@ -87,11 +93,15 @@ async def create_order(payload: CreateOrderRequest, current_user: User = Depends
     if amount == 0:
         raise HTTPException(status_code=400, detail="Free plan does not require payment")
 
-    order = razorpay_client.order.create({
+    order = payment_client().order.create({
         "amount": amount,
         "currency": "INR",
         "notes": {"org_id": str(current_user.org_id), "plan_name": payload.plan_name},
     })
+
+    pg_db.add(BillingOrder(id=order["id"], org_id=current_user.org_id,
+                           plan_name=payload.plan_name, amount=amount, currency="INR"))
+    await pg_db.commit()
 
     return {
         "order_id": order["id"],
@@ -116,15 +126,40 @@ async def verify_payment(payload: VerifyPaymentRequest, current_user: User = Dep
     if payload.plan_name not in PLAN_QUOTA_MAP:
         raise HTTPException(status_code=400, detail="Invalid plan name")
 
+    result = await pg_db.execute(select(BillingOrder).where(
+        BillingOrder.id == payload.razorpay_order_id,
+        BillingOrder.org_id == current_user.org_id,
+        BillingOrder.plan_name == payload.plan_name).with_for_update())
+    stored_order = result.scalar_one_or_none()
+    if stored_order is None:
+        raise HTTPException(400, "Order was not issued for this organisation and plan")
+    if stored_order.paid_at is not None:
+        raise HTTPException(409, "Order has already been applied")
+    client = payment_client()
     generated_signature = hmac.new(
         os.environ["RAZORPAY_KEY_SECRET"].encode(),
-        f"{payload.razorpay_order_id}|{payload.razorpay_payment_id}".encode(),
+        f"{stored_order.id}|{payload.razorpay_payment_id}".encode(),
         hashlib.sha256,
     ).hexdigest()
 
     if not hmac.compare_digest(generated_signature, payload.razorpay_signature):
         raise HTTPException(status_code=400, detail="Payment signature verification failed")
 
+    order = client.order.fetch(payload.razorpay_order_id)
+    payment = client.payment.fetch(payload.razorpay_payment_id)
+    notes = order.get("notes") or {}
+    expected = PLAN_PRICE_MAP[payload.plan_name]
+    if (expected <= 0 or notes.get("org_id") != str(current_user.org_id)
+            or notes.get("plan_name") != payload.plan_name
+            or stored_order.amount != expected or stored_order.currency != "INR"
+            or order.get("amount") != expected or order.get("currency") != "INR"
+            or payment.get("order_id") != payload.razorpay_order_id
+            or payment.get("amount") != expected or payment.get("currency") != "INR"
+            or payment.get("status") != "captured"):
+        raise HTTPException(400, "Payment does not match this organisation and plan")
+
+    stored_order.payment_id = payload.razorpay_payment_id
+    stored_order.paid_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     new_limits = await apply_plan_change(pg_db, current_user, payload.plan_name)
     await write_audit(pg_db, org_id=current_user.org_id, user_id=current_user.id, action="plan_change_paid", target_id=payload.plan_name, metadata=new_limits)
     return {"status": "payment_verified_plan_updated", "plan": payload.plan_name, "quotas": new_limits}
@@ -133,14 +168,13 @@ async def verify_payment(payload: VerifyPaymentRequest, current_user: User = Dep
 @router.post("/webhook")
 async def gateway_webhook(request: Request):
     """STUB — real webhook signature verify baad me webhook-secret milne par (dashboard → Settings → Webhooks)."""
-    payload = await request.json()
-    return {"status": "received", "note": "webhook stub — verify-payment endpoint handles primary flow for now"}
+    raise HTTPException(501, "Webhook processing is not implemented; use verify-payment")
 
 
 class SSOConfigRequest(BaseModel):
     provider: str
     client_id: str
-    client_secret: str
+    client_secret: str = ""
     redirect_uri: str
     issuer: str | None = None
     sso_only: bool = False
@@ -150,6 +184,10 @@ class SSOConfigRequest(BaseModel):
 async def set_sso_config(payload: SSOConfigRequest, current_user: User = Depends(get_current_user), pg_db: AsyncSession = Depends(get_pg_db)):
     if current_user.role.value != "admin":
         raise HTTPException(status_code=403, detail="Admin access required")
+    if payload.client_secret:
+        raise HTTPException(409, "SSO credential storage is not implemented; do not submit client secrets")
+    if payload.sso_only:
+        raise HTTPException(409, "SSO login is not implemented; sso_only cannot be enforced")
     result = await pg_db.execute(select(SSOConfig).where(SSOConfig.org_id == current_user.org_id))
     existing = result.scalar_one_or_none()
     if existing:

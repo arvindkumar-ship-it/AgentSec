@@ -27,7 +27,7 @@ collapse into testing the final message alone. That is a property of
 the target agent's API contract, not something this module can detect
 or work around generically.
 """
-import httpx
+from core import http_safety as httpx
 
 
 # Each chain is a list of (role, content) tuples. The final entry is

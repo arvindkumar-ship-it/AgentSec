@@ -67,7 +67,7 @@ export default function ShieldPage() {
   };
 
   const revertCheckpoint = async (cpId: string) => {
-    if (!confirm("Revert to this checkpoint?")) return;
+    if (!confirm("Mark this checkpoint for manual reversal? This does not restore tool state.")) return;
     try {
       const r = await agentSecAPI.revertCheckpoint(agentId, cpId);
       alert(r.data.message);
@@ -172,7 +172,7 @@ export default function ShieldPage() {
 
           {/* ── Right: Checkpoints ── */}
           <div>
-            <h3 className="text-xs text-gray-500 uppercase tracking-widest mb-3">Checkpoints — Undo</h3>
+            <h3 className="text-xs text-gray-500 uppercase tracking-widest mb-3">Checkpoints — audit markers</h3>
             <div className="space-y-2 max-h-[600px] overflow-y-auto pr-1">
               {checkpoints.length === 0 && (
                 <div className="text-center py-10 text-gray-600 text-sm">
@@ -188,10 +188,10 @@ export default function ShieldPage() {
                         onClick={() => revertCheckpoint(cp.checkpoint_id)}
                         className="flex items-center gap-1 text-xs text-orange-400 hover:text-orange-300 transition-colors"
                       >
-                        <RotateCcw size={12} /> Revert
+                        <RotateCcw size={12} /> Mark for reversal
                       </button>
                     )}
-                    {cp.reverted && <span className="text-xs text-gray-600">Reverted</span>}
+                    {cp.reverted && <span className="text-xs text-gray-600">Marked; state not restored</span>}
                   </div>
                   <p className="text-xs text-gray-600 font-mono">{cp.checkpoint_id.slice(0, 16)}...</p>
                   <p className="text-xs text-gray-600 mt-1">{new Date(cp.created_at).toLocaleString()}</p>

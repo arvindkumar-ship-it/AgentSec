@@ -318,3 +318,4 @@ vercel
 | `Scan returns 0 attacks` | Endpoint URL must accept POST with `{"messages": [...]}` format |
 | `LLM provider failed` | Check API key valid, Groq free tier may need retry |
 
+Audit repair scope, reproducible checks and remaining limitations: [AUDIT_FIXES.md](AUDIT_FIXES.md).

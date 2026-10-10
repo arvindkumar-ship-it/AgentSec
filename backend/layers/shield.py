@@ -15,6 +15,7 @@ from datetime import datetime
 from functools import wraps
 from agents.verifier import check_response_safety
 from core.db import get_db
+from core.verdicts import SafetyVerdict, fail_closed
 
 
 # ─── Blocked Action Patterns ─────────────────────────────────────────────────
@@ -110,12 +111,15 @@ class AgentShield:
         safe_response = await shield.check_outbound(raw_response)
     """
 
-    def __init__(self, agent_id: str, policy: dict = None):
+    def __init__(self, agent_id: str, policy: dict = None, org_id: str | None = None):
         self.agent_id = agent_id
+        self.org_id = org_id
         self.policy = policy or DEFAULT_POLICY
         self.db = None
         self.cost_tracker = {"tokens_used": 0, "estimated_cost_usd": 0.0}
         self._initialized = False
+        self._iterations = 0
+        self._iteration_lock = asyncio.Lock()
 
     async def _ensure_db(self):
         if not self._initialized:
@@ -130,8 +134,17 @@ class AgentShield:
         async def wrapper(*args, **kwargs):
             await self._ensure_db()
             tool_name = func.__name__
+            # Inspect full values, including real Unicode; truncate only log text.
+            def values(value):
+                if isinstance(value, str):
+                    return value
+                if isinstance(value, dict):
+                    return "\n".join(values(k) + "\n" + values(v) for k, v in value.items())
+                if isinstance(value, (tuple, list)):
+                    return "\n".join(values(v) for v in value)
+                return str(value)
+            match_corpus = _normalize_for_matching(values(args) + "\n" + values(kwargs))
             action_repr = json.dumps({"args": str(args)[:200], "kwargs": str(kwargs)[:200]})
-            match_corpus = _normalize_for_matching(action_repr)
 
             # 1. Hard-blocked pattern check (matched against normalized
             #    corpus, which includes decoded base64/URL-encoded text,
@@ -148,6 +161,14 @@ class AgentShield:
                 await self._log("POLICY_VIOLATION", tool_name, action_repr,
                                 error=policy_result["reason"])
                 raise SecurityException(f"AgentShield POLICY: {policy_result['reason']}")
+
+            async with self._iteration_lock:
+                maximum = self.policy.get("max_iterations", 50)
+                if type(maximum) is not int or maximum <= 0:
+                    raise SecurityException("Invalid max_iterations policy")
+                if self._iterations >= maximum:
+                    raise SecurityException("Session iteration limit exceeded")
+                self._iterations += 1
 
             # 3. Checkpoint (for undo)
             checkpoint_id = await self._create_checkpoint(tool_name, args, kwargs)
@@ -173,6 +194,13 @@ class AgentShield:
         """
         await self._ensure_db()
         safety = await check_response_safety(response_text)
+        try:
+            decision = SafetyVerdict.model_validate(safety)
+            if decision.safe != (decision.action != "BLOCK"):
+                raise ValueError("Inconsistent safety decision")
+            safety = decision.model_dump()
+        except ValueError:
+            safety = fail_closed("Invalid runtime safety decision")
 
         await self._log(
             event_type=f"OUTBOUND_{safety['action']}",
@@ -204,6 +232,7 @@ class AgentShield:
             await self.db.checkpoints.insert_one({
                 "checkpoint_id": checkpoint_id,
                 "agent_id": self.agent_id,
+                "org_id": self.org_id,
                 "tool_name": tool_name,
                 "args": str(args)[:500],
                 "kwargs": str(kwargs)[:500],
@@ -220,18 +249,20 @@ class AgentShield:
         """
         await self._ensure_db()
         if self.db is not None:
-            checkpoint = await self.db.checkpoints.find_one({"checkpoint_id": checkpoint_id})
+            scope = {"checkpoint_id": checkpoint_id, "agent_id": self.agent_id, "org_id": self.org_id}
+            checkpoint = await self.db.checkpoints.find_one(scope)
             if not checkpoint:
                 return {"success": False, "error": "Checkpoint not found"}
 
             await self.db.checkpoints.update_one(
-                {"checkpoint_id": checkpoint_id},
+                scope,
                 {"$set": {"reverted": True, "reverted_at": datetime.utcnow()}}
             )
             return {
                 "success": True,
                 "checkpoint_id": checkpoint_id,
                 "tool_name": checkpoint["tool_name"],
+                "state_restored": False,
                 "message": f"Checkpoint {checkpoint_id} marked as reverted. Implement domain-specific reversal logic."
             }
         return {"success": False, "error": "Database not available"}
@@ -276,6 +307,7 @@ class AgentShield:
                    result: str = None, error: str = None, checkpoint_id: str = None):
         log_entry = {
             "agent_id": self.agent_id,
+            "org_id": self.org_id,
             "event_type": event_type,
             "tool_name": tool_name,
             "action": action,
@@ -301,7 +333,7 @@ class AgentShield:
         since = datetime.utcnow() - timedelta(hours=hours)
 
         pipeline = [
-            {"$match": {"agent_id": self.agent_id, "timestamp": {"$gte": since}}},
+            {"$match": {"agent_id": self.agent_id, "org_id": self.org_id, "timestamp": {"$gte": since}}},
             {"$group": {"_id": "$event_type", "count": {"$sum": 1}}}
         ]
 

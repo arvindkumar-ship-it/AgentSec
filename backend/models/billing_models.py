@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean
+from sqlalchemy import Column, String, DateTime, ForeignKey, Boolean, Integer
 from sqlalchemy.dialects.postgresql import UUID
 import uuid, datetime
 from database import Base
@@ -15,3 +15,13 @@ class SSOConfig(Base):
     issuer = Column(String, nullable=True)
     sso_only = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+class BillingOrder(Base):
+    __tablename__ = "billing_orders"
+    id = Column(String, primary_key=True)
+    org_id = Column(UUID(as_uuid=True), ForeignKey("organizations.id"), nullable=False)
+    plan_name = Column(String, nullable=False)
+    amount = Column(Integer, nullable=False)
+    currency = Column(String, nullable=False)
+    payment_id = Column(String, unique=True, nullable=True)
+    paid_at = Column(DateTime, nullable=True)

@@ -40,7 +40,7 @@ export function ScanTable({ scans }: { scans: ScanRun[] }) {
               <td className="px-4 py-3">
                 <RiskBadge level={scan.risk_level} />
               </td>
-              <td className="px-4 py-3 text-gray-900">{scan.security_score}</td>
+              <td className="px-4 py-3 text-gray-900">{scan.security_score ?? "Not measured"}</td>
               <td className="px-4 py-3 text-gray-500">
                 {scan.dynamic_testing_performed ? "Yes" : "No"}
               </td>

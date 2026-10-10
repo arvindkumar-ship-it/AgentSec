@@ -161,8 +161,8 @@ export default function EvalPage() {
                   {history.slice(0, 5).map((h, i) => (
                     <div key={i} className="flex items-center justify-between text-xs">
                       <span className="text-gray-500">{new Date(h.run_at).toLocaleDateString()}</span>
-                      <span className={`font-mono font-bold ${h.pass_rate >= 80 ? "text-green-400" : h.pass_rate >= 60 ? "text-yellow-400" : "text-red-400"}`}>
-                        {h.pass_rate}%
+                      <span className={`font-mono font-bold ${(h.pass_rate ?? -1) >= 80 ? "text-green-400" : (h.pass_rate ?? -1) >= 60 ? "text-yellow-400" : "text-red-400"}`}>
+                        {h.pass_rate == null ? "Not measured" : `${h.pass_rate}%`}
                       </span>
                     </div>
                   ))}
@@ -201,7 +201,7 @@ export default function EvalPage() {
                 {/* Summary */}
                 <div className="grid grid-cols-4 gap-3">
                   {[
-                    { label: "Pass Rate", val: `${result.pass_rate}%`, color: result.pass_rate >= 80 ? "text-green-400" : result.pass_rate >= 60 ? "text-yellow-400" : "text-red-400" },
+                    { label: "Pass Rate", val: result.pass_rate == null ? "Not measured" : `${result.pass_rate}%`, color: (result.pass_rate ?? -1) >= 80 ? "text-green-400" : (result.pass_rate ?? -1) >= 60 ? "text-yellow-400" : "text-red-400" },
                     { label: "Consistency", val: `${result.consistency_score}%`, color: "text-indigo-400" },
                     { label: "Tests Run", val: result.total_tests, color: "text-white" },
                     { label: "Vulnerabilities", val: result.successful_attacks, color: result.successful_attacks > 0 ? "text-red-400" : "text-green-400" },
